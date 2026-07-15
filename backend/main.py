@@ -1,0 +1,485 @@
+import os
+import uuid
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+import mysql.connector
+from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+
+from db import execute, fetch_all, fetch_one, get_db_connection, hash_password, verify_password
+from services import build_owner_analytics, build_owner_dashboard, build_owner_reports
+from overview import get_owner_overview
+from profile import get_owner_profile, update_owner_profile
+from analytics import get_owner_analytics
+from transaction_log import get_owner_transactions
+from monitor import get_monitor_summary, get_active_sessions, get_recent_transactions, get_monitor_slots
+from payments import get_payments, mark_payment_paid
+from scan import create_parking_session
+from scan_out import complete_parking_session
+from attendant_login import authenticate_attendant
+from attendant_signup import register_attendant
+from parking_owner_login import authenticate_parking_owner
+from parking_owner_signup import register_parking_owner
+from check_balance import get_vehicle_balance
+
+try:
+    import cv2  # type: ignore
+except Exception:  # pragma: no cover
+    cv2 = None
+
+try:
+    import easyocr  # type: ignore
+except Exception:  # pragma: no cover
+    easyocr = None
+
+try:
+    from ultralytics import YOLO  # type: ignore
+except Exception:  # pragma: no cover
+    YOLO = None
+
+
+app = FastAPI(title="ParkOptima Python Backend")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+async def parse_json_body(request: Request) -> Dict[str, Any]:
+    try:
+        return await request.json()
+    except Exception as exc:  # pragma: no cover
+        raise HTTPException(status_code=400, detail="Invalid JSON body") from exc
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class SignupRequest(BaseModel):
+    first_name: str = ""
+    last_name: str = ""
+    email: str
+    phone: str = ""
+    password: str
+    role: str = "parking_attendant"
+    plate: str = ""
+    pin: str = ""
+
+
+class VehicleRegisterRequest(BaseModel):
+    owner_name: str
+    phone: str = ""
+    vehicle_type: str
+    brand: str
+    plate: str
+    pin: str
+
+
+class OwnerProfileUpdateRequest(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    motor_fee: Optional[float] = None
+    four_wheeler_fee: Optional[float] = None
+    new_password: Optional[str] = None
+
+
+@app.options("/{path:path}")
+async def options_route(path: str) -> None:
+    return None
+
+
+@app.get("/api/ping")
+async def ping() -> Dict[str, Any]:
+    return {"message": "ParkOptima Python backend is ready"}
+
+
+@app.post("/api/auth/login")
+async def login(payload: LoginRequest) -> Dict[str, Any]:
+    email = payload.email.strip()
+    password = payload.password
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="Email and password are required")
+
+    row = fetch_one(
+        "SELECT id, role, password_hash, password_salt FROM users WHERE email = %s AND is_active = 1 LIMIT 1",
+        [email],
+    )
+    if not row or not verify_password(password, row.get("password_hash"), row.get("password_salt")):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    return {
+        "access_token": str(uuid.uuid4()),
+        "user_id": int(row["id"]),
+        "role": row["role"],
+    }
+
+
+@app.post("/api/attendant/login")
+async def attendant_login(payload: LoginRequest) -> Dict[str, Any]:
+    return authenticate_attendant(payload.email, payload.password)
+
+
+@app.post("/api/attendant/signup")
+async def attendant_signup(payload: SignupRequest) -> Dict[str, Any]:
+    return register_attendant(payload.dict())
+
+
+@app.post("/api/parking-owner/login")
+async def parking_owner_login(payload: LoginRequest) -> Dict[str, Any]:
+    return authenticate_parking_owner(payload.email, payload.password)
+
+
+@app.post("/api/parking-owner/signup")
+async def parking_owner_signup(payload: SignupRequest) -> Dict[str, Any]:
+    return register_parking_owner(payload.dict())
+
+
+@app.post("/api/auth/signup")
+async def signup(payload: SignupRequest) -> Dict[str, Any]:
+    role = payload.role.strip() or "parking_attendant"
+    if role not in {"parking_attendant", "parking_owner", "vehicle_owner"}:
+        raise HTTPException(status_code=400, detail="Invalid role")
+
+    if not payload.email or not payload.password:
+        raise HTTPException(status_code=400, detail="Email, password, and role are required")
+
+    if role == "vehicle_owner" and (not payload.plate or not payload.pin):
+        raise HTTPException(status_code=400, detail="Plate and PIN are required for vehicle owner signup")
+
+    if role == "vehicle_owner" and (not payload.pin.isdigit() or len(payload.pin) != 4):
+        raise HTTPException(status_code=400, detail="PIN must be exactly 4 digits")
+
+    # Basic duplicate checks
+    existing_user = fetch_one("SELECT id FROM users WHERE email = %s LIMIT 1", [payload.email])
+    if existing_user:
+        raise HTTPException(status_code=409, detail="Email is already registered")
+
+    if role == "vehicle_owner":
+        existing_vehicle = fetch_one("SELECT id FROM vehicles WHERE plate = %s LIMIT 1", [payload.plate.upper()])
+        if existing_vehicle:
+            raise HTTPException(status_code=409, detail="Vehicle plate is already registered")
+
+    salt = ""
+    password_hash = hash_password(payload.password, salt)
+
+    connection = get_db_connection()
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            "INSERT INTO users (role, first_name, last_name, email, phone, password_hash, password_salt, is_active) VALUES (%s, %s, %s, %s, %s, %s, %s, 1)",
+            [
+                role,
+                payload.first_name or None,
+                payload.last_name or None,
+                payload.email,
+                payload.phone or None,
+                password_hash,
+                salt,
+            ],
+        )
+        user_id = int(cursor.lastrowid)
+
+        if role == "parking_owner":
+            cursor.execute(
+                "INSERT INTO owner_settings (owner_user_id, system_option, motor_fee, four_wheeler_fee) VALUES (%s, %s, %s, %s)",
+                [user_id, "Parking Owner", 3.00, 30.00],
+            )
+
+        if role == "vehicle_owner":
+            cursor.execute(
+                "INSERT INTO wallets (user_id, balance, currency) VALUES (%s, %s, %s)",
+                [user_id, 0.00, "USD"],
+            )
+            pin_salt = ""
+            pin_hash = hash_password(payload.pin, pin_salt)
+            cursor.execute(
+                "INSERT INTO vehicles (owner_id, plate, type, registered_at, pin_hash, pin_salt, is_active) VALUES (%s, %s, %s, NOW(), %s, %s, 1)",
+                [user_id, payload.plate.upper(), "Car", pin_hash, pin_salt],
+            )
+
+        connection.commit()
+        return {"message": "Signup successful", "user_id": user_id}
+    except mysql.connector.Error as exc:
+        connection.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {exc}") from exc
+    finally:
+        connection.close()
+
+
+@app.post("/api/auth/vehicle-login")
+async def vehicle_login(payload: dict[str, str]) -> Dict[str, Any]:
+    plate = (payload.get("plate") or "").strip().upper()
+    pin = payload.get("pin") or ""
+    if not plate or not pin:
+        raise HTTPException(status_code=400, detail="Plate and PIN are required")
+
+    row = fetch_one(
+        "SELECT v.id AS vehicle_id, v.owner_id, v.pin_hash, v.pin_salt, u.is_active FROM vehicles v JOIN users u ON u.id = v.owner_id WHERE v.plate = %s AND v.is_active = 1 LIMIT 1",
+        [plate],
+    )
+    if not row or not verify_password(pin, row.get("pin_hash"), row.get("pin_salt")):
+        raise HTTPException(status_code=401, detail="Invalid plate or PIN")
+    if not int(row.get("is_active") or 0):
+        raise HTTPException(status_code=403, detail="Vehicle owner is not active")
+
+    return {
+        "access_token": str(uuid.uuid4()),
+        "user_id": int(row["owner_id"]),
+        "vehicle_id": int(row["vehicle_id"]),
+    }
+
+
+@app.post("/api/vehicle/register")
+async def vehicle_register(payload: VehicleRegisterRequest) -> Dict[str, Any]:
+    plate = payload.plate.strip().upper()
+    if not payload.vehicle_type or not payload.brand or not plate or not payload.pin:
+        raise HTTPException(status_code=400, detail="Vehicle type, brand, plate, and PIN are required")
+    if not payload.pin.isdigit() or len(payload.pin) != 4:
+        raise HTTPException(status_code=400, detail="PIN must be exactly 4 digits")
+    if not all(ch.isalnum() or ch in "- " for ch in plate):
+        raise HTTPException(status_code=400, detail="Plate number contains invalid characters")
+
+    existing_vehicle = fetch_one("SELECT id FROM vehicles WHERE plate = %s LIMIT 1", [plate])
+    if existing_vehicle:
+        raise HTTPException(status_code=409, detail="Vehicle plate is already registered")
+
+    names = [part for part in payload.owner_name.split() if part]
+    first_name = names[0] if names else None
+    last_name = " ".join(names[1:]) if len(names) > 1 else None
+    connection = get_db_connection()
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            "INSERT INTO users (role, first_name, last_name, email, phone, password_hash, password_salt, is_active) VALUES (%s, %s, %s, %s, %s, NULL, NULL, 1)",
+            ["vehicle_owner", first_name, last_name, None, payload.phone or None],
+        )
+        user_id = int(cursor.lastrowid)
+        cursor.execute("INSERT INTO wallets (user_id, balance, currency) VALUES (%s, %s, %s)", [user_id, 0.00, "USD"])
+        pin_salt = ""
+        pin_hash = hash_password(payload.pin, pin_salt)
+        cursor.execute(
+            "INSERT INTO vehicles (owner_id, plate, make, type, registered_at, pin_hash, pin_salt, is_active) VALUES (%s, %s, %s, %s, NOW(), %s, %s, 1)",
+            [user_id, plate, payload.brand, payload.vehicle_type, pin_hash, pin_salt],
+        )
+        vehicle_id = int(cursor.lastrowid)
+        connection.commit()
+        return {"message": "Vehicle registration successful", "user_id": user_id, "vehicle_id": vehicle_id}
+    except mysql.connector.Error as exc:
+        connection.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {exc}") from exc
+    finally:
+        connection.close()
+
+
+@app.get("/api/monitor/summary")
+async def monitor_summary() -> Dict[str, Any]:
+    return get_monitor_summary()
+
+
+@app.get("/api/sessions/active")
+async def active_sessions() -> List[Dict[str, Any]]:
+    return get_active_sessions()
+
+
+@app.get("/api/transactions/recent")
+async def recent_transactions() -> List[Dict[str, Any]]:
+    return get_recent_transactions()
+
+
+@app.get("/api/monitor/slots")
+async def monitor_slots(slots: int = Query(default=100)) -> List[Dict[str, Any]]:
+    return get_monitor_slots(slots)
+
+
+@app.get("/api/vehicles/balance")
+async def vehicle_balance(plate: str = Query(...)) -> Dict[str, Any]:
+    return get_vehicle_balance(plate)
+
+
+@app.get("/api/users/{user_id}")
+async def user_profile(user_id: int) -> Dict[str, Any]:
+    row = fetch_one(
+        "SELECT id, first_name, last_name, email, phone, role, is_active, created_at, updated_at FROM users WHERE id = %s LIMIT 1",
+        [user_id],
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="User not found")
+    return row
+
+
+@app.get("/api/owner/dashboard")
+async def owner_dashboard() -> Dict[str, Any]:
+    return get_owner_overview()
+
+
+@app.get("/api/owner/analytics")
+async def owner_analytics() -> Dict[str, Any]:
+    return get_owner_analytics()
+
+
+@app.get("/api/owner/reports")
+async def owner_reports() -> Dict[str, Any]:
+    return build_owner_reports()
+
+
+@app.get("/api/owner/transactions")
+async def owner_transactions() -> List[Dict[str, Any]]:
+    return get_owner_transactions()
+
+
+@app.get("/api/owner/vehicles")
+async def owner_vehicles() -> List[Dict[str, Any]]:
+    rows = fetch_all(
+        "SELECT v.id, v.plate, v.make, v.model, v.color, v.type, v.registered_at, v.is_active, u.first_name, u.last_name, (SELECT ps.status FROM parking_sessions ps WHERE ps.vehicle_id = v.id ORDER BY ps.start_time DESC LIMIT 1) AS latest_status FROM vehicles v LEFT JOIN users u ON u.id = v.owner_id ORDER BY v.registered_at DESC"
+    )
+    return [
+        {
+            "id": int(row["id"]),
+            "plate": row["plate"],
+            "owner_name": f"{row.get('first_name') or ''} {row.get('last_name') or ''}".strip(),
+            "vehicle_details": f"{row.get('make') or ''} {row.get('model') or ''} {row.get('color') or ''}".strip(),
+            "type": row["type"],
+            "date_registered": row["registered_at"],
+            "status": row["latest_status"] or ("active" if row["is_active"] else "inactive"),
+        }
+        for row in rows
+    ]
+
+
+@app.post("/api/owner/vehicles")
+async def owner_vehicle_create(payload: VehicleRegisterRequest) -> Dict[str, Any]:
+    return await vehicle_register(payload)
+
+
+@app.get("/api/owner/users")
+async def owner_users() -> List[Dict[str, Any]]:
+    rows = fetch_all("SELECT id, first_name, last_name, email, phone, role, is_active, created_at FROM users ORDER BY created_at DESC")
+    return [
+        {
+            "id": int(row["id"]),
+            "first_name": row["first_name"],
+            "last_name": row["last_name"],
+            "email": row["email"],
+            "phone": row["phone"],
+            "role": row["role"],
+            "is_active": bool(row["is_active"]),
+            "created_at": row["created_at"],
+        }
+        for row in rows
+    ]
+
+
+@app.post("/api/owner/users")
+async def owner_user_create(payload: SignupRequest) -> Dict[str, Any]:
+    return await signup(payload)
+
+
+@app.get("/api/owner/audit-trail")
+async def owner_audit_trail() -> List[Dict[str, Any]]:
+    rows = fetch_all("SELECT id, user_id, role, action, details, created_at FROM audit_logs ORDER BY created_at DESC LIMIT 50")
+    return [
+        {
+            "id": int(row["id"]),
+            "user_id": int(row["user_id"]),
+            "role": row["role"],
+            "action": row["action"],
+            "details": row["details"],
+            "created_at": row["created_at"],
+        }
+        for row in rows
+    ]
+
+
+@app.get("/api/owner/profile")
+async def owner_profile() -> Dict[str, Any]:
+    return get_owner_profile()
+
+
+@app.post("/api/owner/profile")
+async def owner_profile_update(payload: OwnerProfileUpdateRequest) -> Dict[str, Any]:
+    return update_owner_profile(payload.dict())
+
+
+@app.get("/api/payments")
+async def payments(limit: int = Query(default=50)) -> List[Dict[str, Any]]:
+    return get_payments(limit)
+
+
+@app.post("/api/payments/{transaction_id}/pay")
+async def payment_mark_paid(transaction_id: int) -> Dict[str, Any]:
+    return mark_payment_paid(transaction_id)
+
+
+@app.post("/api/scan")
+async def scan(payload: dict[str, Any]) -> Dict[str, Any]:
+    return create_parking_session(payload)
+
+
+@app.post("/api/scan-out")
+async def scan_out(payload: dict[str, Any]) -> Dict[str, Any]:
+    return complete_parking_session(payload)
+
+
+@app.post("/api/vision/detect")
+async def vision_detect(file: UploadFile = File(...)) -> Dict[str, Any]:
+    if cv2 is None or easyocr is None or YOLO is None:
+        return {
+            "status": "unavailable",
+            "message": "Vision dependencies are not installed. Install the packages from requirements.txt first.",
+            "objects": [],
+            "text": [],
+        }
+
+    contents = await file.read()
+    if not contents:
+        raise HTTPException(status_code=400, detail="No image uploaded")
+
+    temp_path = f"/tmp/{uuid.uuid4().hex}_{file.filename or 'upload.jpg'}"
+    with open(temp_path, "wb") as handle:
+        handle.write(contents)
+
+    image = cv2.imread(temp_path)
+    if image is None:
+        raise HTTPException(status_code=400, detail="Unable to read uploaded image")
+
+    # YOLOv8 object detection
+    model = YOLO("yolov8n.pt")
+    detection_results = model(temp_path, stream=True, conf=0.25)
+
+    detected_objects: List[Dict[str, Any]] = []
+    for result in detection_results:
+        for box in result.boxes:
+            class_id = int(box.cls[0]) if len(box.cls) else -1
+            class_name = model.names.get(class_id, str(class_id)) if hasattr(model, "names") else str(class_id)
+            detected_objects.append(
+                {
+                    "class": class_name,
+                    "confidence": float(box.conf[0]) if len(box.conf) else 0.0,
+                    "bbox": [float(value) for value in box.xyxy[0]],
+                }
+            )
+
+    # OCR
+    reader = easyocr.Reader(["en"], gpu=False)
+    text_results = reader.readtext(temp_path, detail=0, paragraph=False)
+
+    return {
+        "status": "ok",
+        "objects": detected_objects,
+        "text": text_results,
+    }
+
+
+@app.get("/")
+async def root() -> Dict[str, Any]:
+    return {"message": "ParkOptima Python backend is running"}
