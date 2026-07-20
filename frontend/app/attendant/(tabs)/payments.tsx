@@ -162,6 +162,7 @@ const PaymentCard = ({
 export default function PaymentManagement() {
   const router = useRouter();
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [activeTab, setActiveTab] = useState<'confirmation' | 'pending'>('confirmation');
 
   useEffect(() => {
     let mounted = true;
@@ -290,29 +291,43 @@ const txs = await apiRequest<any[]>('/api/payments');
         </View>
 
         <View style={styles.tabsRow}>
-          <View style={styles.tabPillActive}>
-            <ThemedText style={styles.tabTextActive}>Payment Confirmation</ThemedText>
-          </View>
-          <View style={styles.tabPillInactive}>
-            <ThemedText style={styles.tabTextInactive}>Pending Payments</ThemedText>
-          </View>
+          <TouchableOpacity
+            style={activeTab === 'confirmation' ? styles.tabPillActive : styles.tabPillInactive}
+            onPress={() => setActiveTab('confirmation')}
+            activeOpacity={0.8}
+          >
+            <ThemedText style={activeTab === 'confirmation' ? styles.tabTextActive : styles.tabTextInactive}>Payment Confirmation</ThemedText>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={activeTab === 'pending' ? styles.tabPillActive : styles.tabPillInactive}
+            onPress={() => setActiveTab('pending')}
+            activeOpacity={0.8}
+          >
+            <ThemedText style={activeTab === 'pending' ? styles.tabTextActive : styles.tabTextInactive}>Pending Payments</ThemedText>
+          </TouchableOpacity>
         </View>
 
-        {payments.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="document-text-outline" size={26} color={COLORS.border} />
-            <ThemedText style={styles.emptyText}>No payments to confirm yet</ThemedText>
-          </View>
-        ) : (
-          payments.map(payment => (
+        {/* Render list according to active tab */}
+        {(() => {
+          const displayed = payments.filter(p => (activeTab === 'confirmation' ? p.status === 'Unpaid' : p.status === 'Paid'));
+          if (displayed.length === 0) {
+            return (
+              <View style={styles.emptyState}>
+                <Ionicons name="document-text-outline" size={26} color={COLORS.border} />
+                <ThemedText style={styles.emptyText}>{activeTab === 'confirmation' ? 'No payments to confirm' : 'No pending payments'}</ThemedText>
+              </View>
+            );
+          }
+
+          return displayed.map(payment => (
             <PaymentCard
               key={payment.transactionId}
               payment={payment}
               onMarkPaid={handleMarkPaid}
               onSkip={handleSkip}
             />
-          ))
-        )}
+          ));
+        })()}
 
         <View style={{ height: 32 }} />
       </ScrollView>

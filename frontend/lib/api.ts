@@ -39,7 +39,7 @@ const getExpoHostFromConstants = (): string | null => {
   return resolveHost(hostUri);
 };
 
-const DEFAULT_API_PORT = process.env.EXPO_PUBLIC_API_PORT || process.env.API_PORT || '8001';
+const DEFAULT_API_PORT = process.env.EXPO_PUBLIC_API_PORT || process.env.API_PORT || '8000';
 
 const DEFAULT_API_BASE = (() => {
   if (Platform.OS === 'web') {
