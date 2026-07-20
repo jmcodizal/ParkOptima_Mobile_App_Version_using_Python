@@ -2,7 +2,7 @@ from typing import Any, Dict
 
 from fastapi import HTTPException
 
-from db import fetch_one
+from .db import fetch_one
 
 
 def get_vehicle_balance(plate: str) -> Dict[str, Any]:
@@ -23,5 +23,5 @@ def get_vehicle_balance(plate: str) -> Dict[str, Any]:
         "vehicle_type": row.get("vehicle_type") or "Car",
         "registered_at": row.get("registered_at"),
         "balance": float(row.get("balance") or 0.0),
-        "currency": row.get("currency") or "USD",
+        "currency": row.get("currency") or "PHP",
     }

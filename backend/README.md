@@ -1,6 +1,6 @@
 # ParkOptima Python Backend
 
-This backend provides a Python FastAPI service for the frontend app and connects to the `parkoptima` database.
+This backend provides a Python FastAPI service for the frontend app and connects to the `parkoptima_db` database.
 
 ## Setup
 

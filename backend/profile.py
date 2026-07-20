@@ -2,7 +2,7 @@ from typing import Any, Dict, Optional
 
 from fastapi import HTTPException
 
-from db import fetch_one, get_db_connection, hash_password, verify_password
+from .db import fetch_one, get_db_connection, hash_password, verify_password
 
 
 def get_owner_profile() -> Dict[str, Any]:
@@ -85,6 +85,76 @@ def update_owner_profile(payload: Dict[str, Any]) -> Dict[str, Any]:
                 "UPDATE users SET password_hash = %s, password_salt = %s WHERE id = %s",
                 [password_hash, salt, user_id],
             )
+
+        connection.commit()
+        return {"message": "Profile updated"}
+    except HTTPException:
+        connection.rollback()
+        raise
+    except Exception as exc:
+        connection.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {exc}") from exc
+    finally:
+        connection.close()
+
+
+def update_user_profile(user_id: int, payload: Dict[str, Any]) -> Dict[str, Any]:
+    row = fetch_one("SELECT id, password_hash, password_salt, email FROM users WHERE id = %s LIMIT 1", [user_id])
+    if not row:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if payload.get("email"):
+        existing = fetch_one("SELECT id FROM users WHERE email = %s AND id != %s LIMIT 1", [payload.get("email"), user_id])
+        if existing:
+            raise HTTPException(status_code=409, detail="Email is already registered")
+
+    full_name = payload.get("full_name")
+    first_name = payload.get("first_name")
+    last_name = payload.get("last_name")
+    if full_name is not None:
+        parts = [part for part in str(full_name).split() if part]
+        first_name = parts[0] if parts else None
+        last_name = " ".join(parts[1:]) if len(parts) > 1 else None
+
+    current_password = payload.get("current_password")
+    new_password = payload.get("new_password")
+    if new_password and not current_password:
+        raise HTTPException(status_code=400, detail="Current password is required to update password")
+    if new_password:
+        if not verify_password(str(current_password or ""), row.get("password_hash"), row.get("password_salt")):
+            raise HTTPException(status_code=401, detail="Current password is invalid")
+        if len(str(new_password)) < 6:
+            raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+
+    connection = get_db_connection()
+    try:
+        cursor = connection.cursor()
+        updates: list[str] = []
+        values: list[Any] = []
+
+        if first_name is not None:
+            updates.append("first_name = %s")
+            values.append(first_name.strip() if isinstance(first_name, str) else first_name)
+        if last_name is not None:
+            updates.append("last_name = %s")
+            values.append(last_name.strip() if isinstance(last_name, str) else last_name)
+        if payload.get("email") is not None:
+            updates.append("email = %s")
+            values.append(str(payload.get("email") or "").strip())
+        if payload.get("phone") is not None:
+            updates.append("phone = %s")
+            values.append(str(payload.get("phone") or "").strip())
+        if new_password:
+            salt = ""
+            password_hash = hash_password(str(new_password), salt)
+            updates.append("password_hash = %s")
+            values.append(password_hash)
+            updates.append("password_salt = %s")
+            values.append(salt)
+
+        if updates:
+            values.append(user_id)
+            cursor.execute(f"UPDATE users SET {', '.join(updates)} WHERE id = %s", values)
 
         connection.commit()
         return {"message": "Profile updated"}

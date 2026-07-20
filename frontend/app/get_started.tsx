@@ -81,7 +81,8 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: COLORS.white,
     letterSpacing: 0.5,
-    marginBottom: 4,
+    marginBottom: 10,
+    marginTop: 300
   },
   brandTagline: {
     fontSize: 10,
@@ -89,7 +90,7 @@ const styles = StyleSheet.create({
     color: COLORS.whiteAlpha60,
     letterSpacing: 1.5,
     textAlign: 'center',
-    marginBottom: 18,
+
   },
 
   getStartedBtn: {
@@ -99,7 +100,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.teal,
     borderRadius: 14,
     paddingVertical: 15,
-    marginBottom: 16,
+    marginBottom: 600,
     width: 320,
     alignSelf: 'center',
   },

@@ -1,5 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createContext, useContext, useMemo, useState, type PropsWithChildren } from 'react';
 
 type AuthContextValue = {
   isAuthenticated: boolean;
@@ -16,24 +15,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [userId, setUserId] = useState<number | null>(null);
   const [role, setRole] = useState<string | null>(null);
 
-  const restoreSession = async () => {
-    try {
-      const storedUserId = await AsyncStorage.getItem('parkoptima:userId');
-      const storedRole = await AsyncStorage.getItem('parkoptima:role');
-      if (storedUserId) {
-        setUserId(Number(storedUserId));
-        setRole(storedRole || 'attendant');
-        setIsAuthenticated(true);
-      }
-    } catch (error) {
-      console.warn('Failed to restore auth session', error);
-    }
-  };
-
-  useEffect(() => {
-    restoreSession();
-  }, []);
-
   const value = useMemo(
     () => ({
       isAuthenticated,
@@ -42,17 +23,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
       signIn: async (nextUserId?: number, nextRole?: string) => {
         const resolvedUserId = nextUserId ?? userId;
         const resolvedRole = nextRole ?? role ?? 'attendant';
-        if (resolvedUserId) {
-          await AsyncStorage.setItem('parkoptima:userId', String(resolvedUserId));
-          await AsyncStorage.setItem('parkoptima:role', resolvedRole);
-        }
         setUserId(resolvedUserId ?? null);
         setRole(resolvedRole ?? null);
         setIsAuthenticated(Boolean(resolvedUserId));
       },
       signOut: async () => {
-        await AsyncStorage.removeItem('parkoptima:userId');
-        await AsyncStorage.removeItem('parkoptima:role');
         setUserId(null);
         setRole(null);
         setIsAuthenticated(false);

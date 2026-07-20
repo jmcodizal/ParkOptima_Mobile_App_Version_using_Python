@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, TextInput, View, Pressable } from 'react-native';
+import { ScrollView, StyleSheet, TextInput, View, Pressable, TouchableOpacity, Modal, Text } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useRouter } from 'expo-router';
+import { Colors } from '@/constants/theme';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -8,25 +11,36 @@ import TopBar from '@/components/ui/top-bar';
 import { apiRequest } from '@/lib/api';
 
 const COLORS = {
-  navy: '#1D3D8A',
-  surface: '#F5F6F8',
+  navy: '#1E3A8A',
+  navyDark: '#08131F',
+  surface: '#F4F6F9',
   white: '#FFFFFF',
-  textPrimary: '#2C2C33',
-  textSecondary: '#6A707F',
-  textMuted: '#a0aac7',
-  border: '#D4D6D8',
-  successBg: '#E8F8EE',
-  warningBg: '#FFF4E5',
-  warning: '#F39C12',
-  teal: '#13B4AA',
+  textPrimary: '#1E2430',
+  textSecondary: '#6B7A8D',
+  textMuted: '#9AA5B8',
+  border: '#E4E7EC',
+  successBg: '#DCFCE9',
+  successText: '#0F9D58',
+  warningBg: '#FEF3E2',
+  warning: '#F59E0B',
+  overstayBg: '#FEE2E2',
+  overstayText: '#B91C1C',
+  teal: '#0EA5A0',
+  tealLight: '#DBF5F2',
+  navyLight: '#E7E9FB',
+  amberChip: '#FDECD1',
+  blue: '#3B82F6',
+  blueLight: '#E7EFFE',
   secondaryBlue: '#2A4EA3',
-  placeholder: '#BDBDBD',
-  shadow: '#E8EAF0',
-  paidText: '#4CAF50',
-  unpaidText: '#F39C12',
+  placeholder: '#9AA5B8',
+  shadow: '#0B1B2E',
+  paidText: '#0F9D58',
+  unpaidText: '#F59E0B',
 };
 
 export default function MonitorScreen() {
+  const router = useRouter();
+  const [scanModalVisible, setScanModalVisible] = useState(false);
   const [summary, setSummary] = useState<any>({ active_count: 0, occupancy_percent: 0, traffic_level: 'Low', total_capacity: 100 });
   const [sessions, setSessions] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -50,9 +64,11 @@ export default function MonitorScreen() {
 
     const loadDetails = async () => {
       try {
-        const s = await apiRequest<any[]>('/api/sessions/active');
-        const t = await apiRequest<any[]>('/api/transactions/recent');
-        const sl = await apiRequest<any[]>('/api/monitor/slots?slots=100');
+        const [s, t, sl] = await Promise.all([
+          apiRequest<any[]>('/api/sessions/active'),
+          apiRequest<any[]>('/api/transactions/recent'),
+          apiRequest<any[]>('/api/monitor/slots?slots=100'),
+        ]);
         if (!mounted) return;
         setSessions(Array.isArray(s) ? s : []);
         setTransactions(Array.isArray(t) ? t : []);
@@ -78,11 +94,16 @@ export default function MonitorScreen() {
     }
   };
 
+  const isOverstay = (status: string) => (status || '').toLowerCase().includes('overstay');
+  const occupiedSlots = slots.filter(s => s.occupied).length;
+  const availableSlots = Math.max(0, slots.length - occupiedSlots);
+
   return (
-    <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-      <TopBar />
-      
-      {/* Hero Section with Dark Background */}
+    <View style={styles.container}>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <TopBar />
+
+      {/* Hero Section — navy header, matches app-wide header palette */}
       <View style={styles.heroSection}>
         <View style={styles.headerWithBadge}>
           <View style={styles.header}>
@@ -99,26 +120,26 @@ export default function MonitorScreen() {
         {/* Stat Cards Inside Hero */}
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
-            <View style={styles.statIconContainer}>
-              <MaterialIcons name="directions-car" size={24} color={COLORS.teal} />
+            <View style={[styles.statIconContainer, { backgroundColor: COLORS.navyLight }]}>
+              <MaterialIcons name="directions-car" size={16} color={COLORS.navy} />
             </View>
-            <ThemedText style={styles.statSmallLabel}>Currently Occupied</ThemedText>
+            <ThemedText style={styles.statSmallLabel}>Occupied</ThemedText>
             <ThemedText style={styles.statValue}>{summary.active_count}</ThemedText>
             <ThemedText style={styles.statMeta}>out of {summary.total_capacity}</ThemedText>
           </View>
           <View style={styles.statCard}>
-            <View style={styles.statIconContainer}>
-              <MaterialIcons name="local-parking" size={24} color={COLORS.teal} />
+            <View style={[styles.statIconContainer, { backgroundColor: COLORS.tealLight }]}>
+              <MaterialIcons name="local-parking" size={16} color={COLORS.teal} />
             </View>
-            <ThemedText style={styles.statSmallLabel}>Parking Occupancy</ThemedText>
+            <ThemedText style={styles.statSmallLabel}>Occupancy</ThemedText>
             <ThemedText style={styles.statValue}>{summary.occupancy_percent}%</ThemedText>
             <ThemedText style={styles.statMeta}>{summary.total_capacity} available</ThemedText>
           </View>
           <View style={styles.statCard}>
-            <View style={styles.statIconContainer}>
-              <MaterialIcons name="traffic" size={24} color={getTrafficColor(summary.traffic_level)} />
+            <View style={[styles.statIconContainer, { backgroundColor: COLORS.amberChip }]}>
+              <MaterialIcons name="traffic" size={16} color={getTrafficColor(summary.traffic_level)} />
             </View>
-            <ThemedText style={styles.statSmallLabel}>Traffic Load</ThemedText>
+            <ThemedText style={styles.statSmallLabel}>Traffic load</ThemedText>
             <ThemedText style={[styles.statValue, { color: getTrafficColor(summary.traffic_level) }]}>
               {summary.traffic_level === 'Low' ? 'Pass' : summary.traffic_level}
             </ThemedText>
@@ -130,73 +151,91 @@ export default function MonitorScreen() {
       {/* Main Content Area with Light Background */}
       <View style={styles.contentSection}>
         <View style={styles.searchBarRow}>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Plate, owner, or ID..."
-            placeholderTextColor={COLORS.placeholder}
-          />
+          <View style={styles.searchWrap}>
+            <MaterialIcons name="search" size={16} color={COLORS.textMuted} style={{ marginRight: 6 }} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Plate, owner, or ID..."
+              placeholderTextColor={COLORS.placeholder}
+            />
+          </View>
           <Pressable style={styles.filterButton}>
+            <MaterialIcons name="filter-list" size={15} color={COLORS.textPrimary} style={{ marginRight: 4 }} />
             <ThemedText style={styles.filterText}>Filter</ThemedText>
-          </Pressable>
-          <Pressable style={styles.csvButton}>
-            <MaterialIcons name="download" size={18} color={COLORS.white} style={{marginRight: 4}} />
-            <ThemedText style={styles.csvText}>CSV</ThemedText>
           </Pressable>
         </View>
 
+        <Pressable style={styles.csvButton}>
+          <MaterialIcons name="file-download" size={17} color={COLORS.white} style={{ marginRight: 8 }} />
+          <ThemedText style={styles.csvText}>Export CSV</ThemedText>
+        </Pressable>
+
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <MaterialIcons name="directions-car" size={20} color={COLORS.textPrimary} />
+            <MaterialIcons name="directions-car" size={17} color={COLORS.textPrimary} />
             <ThemedText type="subtitle" style={styles.sectionTitle}>
               Currently Parked Vehicles
             </ThemedText>
           </View>
 
-            <View style={styles.slotsCard}>
-              <ThemedText style={styles.slotsTitle}>Active Parking Slots</ThemedText>
-              <View style={styles.slotsGrid}>
-                {slots.map(slot => (
-                  <View key={slot.id} style={[styles.slotItem, slot.occupied ? styles.slotOccupied : styles.slotAvailable]}>
-                    <ThemedText style={[styles.slotText, slot.occupied && styles.slotTextOccupied]}>{slot.id}</ThemedText>
-                  </View>
-                ))}
-              </View>
-              <ThemedText style={styles.slotsMeta}>{slots.filter(s => s.occupied).length} occupied - {Math.max(0, slots.length - slots.filter(s => s.occupied).length)} available of {slots.length} total</ThemedText>
+          <View style={styles.slotsCard}>
+            <ThemedText style={styles.slotsTitle}>ACTIVE PARKING SLOTS</ThemedText>
+            <View style={styles.slotsGrid}>
+              {slots.map(slot => (
+                <View key={slot.id} style={[styles.slotItem, slot.occupied ? styles.slotOccupied : styles.slotAvailable]}>
+                  <ThemedText style={[styles.slotText, slot.occupied && styles.slotTextOccupied]}>{slot.id}</ThemedText>
+                </View>
+              ))}
             </View>
+            <View style={styles.slotsLegendRow}>
+              <View style={styles.slotsLegendItem}>
+                <View style={[styles.legendDot, { backgroundColor: COLORS.navy }]} />
+                <ThemedText style={styles.slotsLegendText}>Occupied</ThemedText>
+              </View>
+              <View style={styles.slotsLegendItem}>
+                <View style={[styles.legendDot, styles.legendDotOutline]} />
+                <ThemedText style={styles.slotsLegendText}>Available</ThemedText>
+              </View>
+              <ThemedText style={styles.slotsMeta}>{occupiedSlots} occupied · {availableSlots} available</ThemedText>
+            </View>
+          </View>
 
-            {sessions.map(s => (
-            <View key={s.session_uuid ?? s.id} style={styles.vehicleCard}>
-              <View style={styles.vehicleHeader}>
-                <View>
-                  <ThemedText style={styles.vehicleId}>{s.vehicle_id ?? s.id}</ThemedText>
-                  <ThemedText style={styles.vehicleType}>{(s.make || '') + ' ' + (s.model || '')}</ThemedText>
-                </View>
-                <View style={styles.statusPillActive}>
-                  <ThemedText style={styles.statusPillText}>{(s.status || '').toUpperCase()}</ThemedText>
-                </View>
-              </View>
-              <View style={styles.vehicleBody}>
-                <View style={styles.vehicleBodyItem}>
-                  <ThemedText style={styles.vehicleLabel}>Owner</ThemedText>
-                  <ThemedText style={styles.vehicleOwner}>{s.owner_name || 'Unknown'}</ThemedText>
-                </View>
-                <View style={styles.vehicleBodyItem}>
-                  <ThemedText style={styles.vehicleLabel}>Entry Time</ThemedText>
-                  <ThemedText style={styles.vehicleDetail}>{s.start_time ? new Date(s.start_time).toLocaleString() : '--'}</ThemedText>
-                </View>
-                <View style={styles.vehicleBodyItem}>
-                  <ThemedText style={styles.vehicleLabel}>Duration</ThemedText>
-                  <ThemedText style={styles.vehicleDetail}>{s.duration_seconds ? new Date(s.duration_seconds * 1000).toISOString().substr(11, 8) : '--'}</ThemedText>
-                </View>
-              </View>
+          <View style={styles.listCard}>
+            <View style={styles.listCardHeader}>
+              <MaterialIcons name="receipt-long" size={16} color={COLORS.textPrimary} />
+              <ThemedText style={styles.listCardTitle}>Transactions</ThemedText>
             </View>
-          ))}
+            <ThemedText style={styles.listCardSubtitle}>CURRENTLY PARKED</ThemedText>
+
+            {sessions.map((s, i) => (
+              <View key={s.session_uuid ?? s.id} style={[styles.vehicleRow, i === sessions.length - 1 && { borderBottomWidth: 0 }]}>
+                <View style={styles.vehicleIconWrap}>
+                  <MaterialIcons name="directions-car" size={17} color={COLORS.blue} />
+                </View>
+                <View style={styles.vehicleInfo}>
+                  <ThemedText style={styles.vehicleId}>{s.vehicle_id ?? s.id}</ThemedText>
+                  <ThemedText style={styles.vehicleDetail}>
+                    {s.owner_name || 'Unknown'} · in {s.start_time ? new Date(s.start_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '--'}
+                  </ThemedText>
+                </View>
+                <View style={styles.vehicleRight}>
+                  <ThemedText style={styles.vehicleSlot}>Slot {s.slot_number ?? s.slot ?? '--'}</ThemedText>
+                  <View style={[styles.statusPill, isOverstay(s.status) ? styles.statusPillOverstay : styles.statusPillActive]}>
+                    <ThemedText style={[styles.statusPillText, isOverstay(s.status) ? styles.statusPillTextOverstay : styles.statusPillTextActive]}>
+                      {isOverstay(s.status) ? 'Overstay' : 'Parked'}
+                    </ThemedText>
+                  </View>
+                </View>
+              </View>
+            ))}
+          </View>
         </View>
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
+            <MaterialIcons name="receipt-long" size={17} color={COLORS.textPrimary} />
             <ThemedText type="subtitle" style={styles.sectionTitle}>
-              Transactions
+              Recent Transactions
             </ThemedText>
           </View>
 
@@ -218,18 +257,125 @@ export default function MonitorScreen() {
         </View>
       </View>
     </ScrollView>
+    <TouchableOpacity style={styles.fab} onPress={() => setScanModalVisible(true)}>
+      <IconSymbol size={32} name="camera" color="#ffffff" />
+    </TouchableOpacity>
+    <Modal
+      visible={scanModalVisible}
+      animationType="fade"
+      transparent
+      onRequestClose={() => setScanModalVisible(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContainer}>
+          <Text style={styles.modalTitle}>Choose scan type</Text>
+          <View style={styles.modalButtonsRow}>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => {
+                setScanModalVisible(false);
+                router.push('/attendant/scan');
+              }}
+            >
+              <IconSymbol name="qrcode" size={28} color={Colors.light.tint} />
+              <Text style={styles.modalButtonText}>Entry</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => {
+                setScanModalVisible(false);
+                router.push('/attendant/scan-out');
+              }}
+            >
+              <IconSymbol name="qrcode" size={28} color={Colors.light.tint} />
+              <Text style={styles.modalButtonText}>Exit</Text>
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity onPress={() => setScanModalVisible(false)} style={styles.modalClose}>
+            <Text style={styles.modalCloseText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.white,
+  },
   scrollView: {
     flex: 1,
     backgroundColor: COLORS.white,
   },
+  fab: {
+    position: 'absolute',
+    bottom: 28,
+    right: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: Colors.light.tint,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContainer: {
+    width: '100%',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 18,
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  modalButtonsRow: {
+    flexDirection: 'row',
+    width: '100%',
+    justifyContent: 'space-around',
+    marginBottom: 12,
+  },
+  modalButton: {
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    minWidth: 110,
+  },
+  modalButtonText: {
+    marginTop: 8,
+    fontWeight: '600',
+    color: '#333',
+  },
+  modalClose: {
+    marginTop: 6,
+    paddingVertical: 8,
+  },
+  modalCloseText: {
+    color: Colors.light.tabIconDefault,
+    fontWeight: '600',
+  },
   heroSection: {
     backgroundColor: COLORS.navy,
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 16,
     paddingBottom: 24,
   },
   contentSection: {
@@ -242,7 +388,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   header: {
     flex: 1,
@@ -250,84 +396,95 @@ const styles = StyleSheet.create({
   title: {
     color: COLORS.white,
     marginBottom: 2,
-    fontSize: 28,
+    fontSize: 24,
+    fontWeight: '800',
   },
   subtitle: {
-    color: COLORS.border,
-    fontSize: 14,
-    lineHeight: 20,
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 13,
+    lineHeight: 18,
   },
   timestamp: {
-    color: COLORS.border,
-    fontSize: 12,
-    marginBottom: 20,
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: 11,
+    marginBottom: 18,
   },
   statsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 10,
     marginBottom: 0,
   },
   statCard: {
     flex: 1,
-    borderRadius: 16,
+    minWidth: 100,
+    borderRadius: 14,
     backgroundColor: COLORS.white,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    padding: 12,
     shadowColor: COLORS.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.35,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
   },
   statIconContainer: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 8,
   },
   statSmallLabel: {
     color: COLORS.textSecondary,
-    fontSize: 10,
-    marginBottom: 6,
+    fontSize: 9,
+    marginBottom: 4,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   statValue: {
     color: COLORS.textPrimary,
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 19,
+    fontWeight: '800',
     marginBottom: 2,
   },
   trafficValue: {
     color: COLORS.warning,
   },
   statMeta: {
-    color: COLORS.textSecondary,
-    fontSize: 10,
+    color: COLORS.textMuted,
+    fontSize: 9,
   },
   searchBarRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap',
     gap: 8,
-    marginBottom: 24,
+    marginBottom: 12,
   },
-  searchInput: {
+  searchWrap: {
     flex: 1,
-    backgroundColor: COLORS.surface,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
     borderColor: COLORS.border,
     borderWidth: 1,
     borderRadius: 12,
+    paddingHorizontal: 12,
+  },
+  searchInput: {
+    flex: 1,
     color: COLORS.textPrimary,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    fontSize: 14,
+    paddingVertical: 11,
+    fontSize: 13,
   },
   filterButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 11,
+    paddingHorizontal: 14,
     borderRadius: 12,
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.white,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
@@ -337,18 +494,18 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   csvButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 14,
+    paddingVertical: 13,
     borderRadius: 12,
     backgroundColor: COLORS.teal,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    justifyContent: 'center',
+    marginBottom: 22,
   },
   csvText: {
     color: COLORS.white,
     fontWeight: '700',
-    fontSize: 12,
+    fontSize: 14,
   },
   section: {
     marginBottom: 24,
@@ -361,96 +518,28 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: COLORS.textPrimary,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  vehicleCard: {
-    borderRadius: 16,
-    backgroundColor: COLORS.white,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    shadowColor: COLORS.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.35,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  vehicleHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  vehicleId: {
-    color: COLORS.textPrimary,
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  vehicleType: {
-    color: COLORS.textSecondary,
-    marginTop: 4,
-    fontSize: 12,
-  },
-  statusPillActive: {
-    borderRadius: 20,
-    backgroundColor: COLORS.successBg,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-  },
-  statusPillInactive: {
-    borderRadius: 20,
-    backgroundColor: COLORS.warningBg,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-  },
-  statusPillText: {
-    color: COLORS.textPrimary,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  vehicleBody: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  vehicleBodyItem: {
-    flex: 1,
-    minWidth: 120,
-  },
-  vehicleLabel: {
-    color: COLORS.textMuted,
-    fontSize: 10,
-    marginBottom: 4,
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-    fontWeight: '600',
-  },
-  vehicleOwner: {
-    color: COLORS.textPrimary,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  vehicleDetail: {
-    color: COLORS.secondaryBlue,
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '700',
   },
   slotsCard: {
-    borderRadius: 12,
+    borderRadius: 16,
     backgroundColor: COLORS.white,
-    padding: 12,
-    marginBottom: 12,
+    padding: 14,
+    marginBottom: 14,
     borderWidth: 1,
     borderColor: COLORS.border,
+    shadowColor: COLORS.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 1,
   },
   slotsTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    marginBottom: 8,
-    color: COLORS.textPrimary,
+    fontSize: 11,
+    fontWeight: '800',
+    marginBottom: 10,
+    color: COLORS.warning,
+    letterSpacing: 0.5,
   },
   slotsGrid: {
     flexDirection: 'row',
@@ -483,11 +572,78 @@ const styles = StyleSheet.create({
   slotTextOccupied: {
     color: '#ffffff',
   },
-  slotsMeta: {
-    marginTop: 8,
-    color: COLORS.textSecondary,
-    fontSize: 12,
+  slotsLegendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 14,
+    marginTop: 12,
   },
+  slotsLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  legendDot: { width: 8, height: 8, borderRadius: 4 },
+  legendDotOutline: { backgroundColor: COLORS.white, borderWidth: 1.5, borderColor: COLORS.border },
+  slotsLegendText: { fontSize: 11, color: COLORS.textSecondary, fontWeight: '600' },
+  slotsMeta: {
+    color: COLORS.textMuted,
+    fontSize: 11,
+  },
+
+  // Currently-parked list card
+  listCard: {
+    borderRadius: 16,
+    backgroundColor: COLORS.white,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: COLORS.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  listCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
+  listCardTitle: { fontSize: 14, fontWeight: '700', color: COLORS.textPrimary },
+  listCardSubtitle: {
+    fontSize: 10, fontWeight: '700', color: COLORS.teal,
+    letterSpacing: 0.5, marginBottom: 6,
+  },
+  vehicleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  vehicleIconWrap: {
+    width: 38, height: 38, borderRadius: 12,
+    backgroundColor: COLORS.blueLight,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  vehicleInfo: { flex: 1 },
+  vehicleId: {
+    color: COLORS.textPrimary,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  vehicleDetail: {
+    color: COLORS.textMuted,
+    marginTop: 2,
+    fontSize: 11,
+  },
+  vehicleRight: { alignItems: 'flex-end', gap: 5 },
+  vehicleSlot: { fontSize: 11, color: COLORS.textSecondary, fontWeight: '600' },
+  statusPill: {
+    borderRadius: 20,
+    paddingVertical: 3,
+    paddingHorizontal: 10,
+  },
+  statusPillActive: { backgroundColor: COLORS.successBg },
+  statusPillOverstay: { backgroundColor: COLORS.overstayBg },
+  statusPillText: { fontSize: 10, fontWeight: '700' },
+  statusPillTextActive: { color: COLORS.successText },
+  statusPillTextOverstay: { color: COLORS.overstayText },
+
   tableHeader: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -524,7 +680,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     shadowColor: COLORS.shadow,
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 1,
   },

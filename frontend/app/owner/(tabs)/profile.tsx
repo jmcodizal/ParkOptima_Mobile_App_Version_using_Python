@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 
 import { Colors } from '@/constants/theme';
 import { apiRequest } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 
 type ProfileData = {
   id: number;
@@ -26,23 +27,31 @@ type ProfileData = {
 };
 
 const C = {
-  navy: Colors.light.tint,
+  navy: '#1E3A8A',
+  navyDark: '#08131F',
   white: Colors.light.background,
-  surface: '#F5F6F8',
-  border: '#D4D6D8',
+  surface: '#F4F6F9',
+  border: '#E4E7EC',
+  fieldBg: '#F3F5F8',
   textPrimary: Colors.light.text,
   textSecondary: '#6B7A8D',
-  textMuted: '#a0aac7',
+  textMuted: '#9AA5B8',
+  teal: '#0EA5A0',
+  tealLight: '#DBF5F2',
+  amber: '#F59E0B',
+  amberBg: '#FEF3E2',
+  amberBorder: '#FCE3B6',
+  indigo: '#4F5FE0',
+  indigoLight: '#E7E9FB',
   successBg: '#E8F8EE',
-  errorBg: '#FFE7E5',
-  errorText: '#A92525',
+  errorBg: '#FEE2E2',
+  errorText: '#B91C1C',
   successText: '#4CAF50',
-  amber: '#FDB022',
-  amberBg: '#FFFBEB',
 };
 
 export default function AccountSettingsScreen() {
   const router = useRouter();
+  const { signOut } = useAuth();
   const [fullName, setFullName] = useState('Parking Owner');
   const [email, setEmail] = useState('owner@parkoptima.com');
   const [phone, setPhone] = useState('');
@@ -63,11 +72,11 @@ export default function AccountSettingsScreen() {
           setFullName(response.full_name || 'Parking Owner');
           setEmail(response.email || '');
           setPhone(response.phone || '');
-          setMotorFee(String(response.motor_fee ?? 3));
+          setMotorFee(String(response.motor_fee ?? 5));
           setFourWheelerFee(String(response.four_wheeler_fee ?? 20));
           setActiveSettings({
             systemOption: response.system_option || 'Parking Owner',
-            motorFee: response.motor_fee ?? 3,
+            motorFee: response.motor_fee ?? 5,
             fourWheelerFee: response.four_wheeler_fee ?? 20,
           });
         }
@@ -85,15 +94,21 @@ export default function AccountSettingsScreen() {
   const handleLogout = () => {
     console.log('Logout button pressed');
     Alert.alert('Logout', 'Are you sure you want to logout?', [
-      { text: 'Cancel', onPress: () => console.log('Logout cancelled') },
+      { text: 'Cancel', onPress: () => console.log('Logout cancelled'), style: 'cancel' },
       {
         text: 'Logout',
         onPress: () => {
-          console.log('Confirming logout, navigating...');
-          // Use router.dismissAll to clear the entire stack, then push to modal_login
-          router.dismissAll();
-          router.push('/modal_login');
+          console.log('Confirming logout, clearing auth state...');
+          signOut()
+            .catch((error) => console.error('Sign out failed', error))
+            .finally(() => {
+              setTimeout(() => {
+                console.log('Navigating to modal_login after sign out');
+                router.replace('/modal_login');
+              }, 50);
+            });
         },
+        style: 'destructive',
       },
     ]);
   };
@@ -127,20 +142,24 @@ export default function AccountSettingsScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* Header */}
+      {/* Navbar — same pattern as Overview */}
+      <View style={styles.navbar}>
+                    <View style={styles.navLeft}>
+                      <View style={styles.navLogoMark}>
+                       <Ionicons name="car-sport" size={16} color={C.navy} />
+                      </View>
+                      <Text style={styles.navBrand}>ParkOptima</Text>
+                    </View>
+                    <TouchableOpacity style={styles.bellWrap}>
+                      <Text style={styles.bellIcon}>🔔</Text>
+                      <View style={styles.bellDot} />
+                    </TouchableOpacity>
+           </View>
+
+      {/* Header — same style as Overview */}
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <View style={styles.logoBadge}>
-            <Text style={styles.logoBadgeText}>P</Text>
-          </View>
-          <View>
-            <Text style={styles.headerTitle}>ParkOptima</Text>
-            <Text style={styles.headerSubtitle}>Parking Owner / Account Settings</Text>
-          </View>
-        </View>
-        <View style={styles.avatarCircleHeader}>
-          <Text style={styles.avatarText}>👤</Text>
-        </View>
+        <Text style={styles.headerTitle}>Account settings</Text>
+        <Text style={styles.headerSubtitle}>Manage your profile and security preferences</Text>
       </View>
 
       <ScrollView
@@ -148,21 +167,25 @@ export default function AccountSettingsScreen() {
         contentContainerStyle={styles.bodyContent}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.screenTitle}>Account Settings</Text>
-        <Text style={styles.screenSubtitle}>Manage your profile and security preferences</Text>
-
         {/* Profile card */}
         <View style={styles.profileCard}>
           <View style={styles.profileAvatar}>
-            <Text style={styles.profileAvatarText}>👤</Text>
+            <Ionicons name="person" size={26} color={C.indigo} />
           </View>
           <Text style={styles.profileName}>{fullName}</Text>
           <Text style={styles.profileEmail}>{email}</Text>
+          <View style={styles.rolePill}>
+            <Text style={styles.rolePillText}>{activeSettings.systemOption}</Text>
+          </View>
         </View>
 
         {/* Account Information */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>ACCOUNT INFORMATION</Text>
+          <View style={styles.cardTitleRow}>
+            <Ionicons name="person-circle-outline" size={16} color={C.indigo} style={{ marginRight: 6 }} />
+            <Text style={styles.cardTitle}>Account information</Text>
+          </View>
+          <Text style={styles.cardSubtitle}>Your personal details</Text>
 
           <Text style={styles.fieldLabel}>FULL NAME</Text>
           <TextInput
@@ -170,7 +193,7 @@ export default function AccountSettingsScreen() {
             value={fullName}
             onChangeText={setFullName}
             placeholder="Full name"
-            placeholderTextColor={C.textSecondary}
+            placeholderTextColor={C.textMuted}
           />
 
           <Text style={styles.fieldLabel}>EMAIL ADDRESS</Text>
@@ -179,18 +202,18 @@ export default function AccountSettingsScreen() {
             value={email}
             onChangeText={setEmail}
             placeholder="Email address"
-            placeholderTextColor={C.textSecondary}
+            placeholderTextColor={C.textMuted}
             keyboardType="email-address"
             autoCapitalize="none"
           />
 
           <Text style={styles.fieldLabel}>PHONE NUMBER</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { marginBottom: 0 }]}
             value={phone}
             onChangeText={setPhone}
             placeholder="Phone number"
-            placeholderTextColor={C.textSecondary}
+            placeholderTextColor={C.textMuted}
             keyboardType="phone-pad"
           />
         </View>
@@ -198,9 +221,10 @@ export default function AccountSettingsScreen() {
         {/* Change Password */}
         <View style={styles.card}>
           <View style={styles.cardTitleRow}>
-            <Text style={styles.cardTitleIcon}>🔒</Text>
-            <Text style={styles.cardTitle}>CHANGE PASSWORD</Text>
+            <Ionicons name="lock-closed" size={15} color={C.amber} style={{ marginRight: 6 }} />
+            <Text style={styles.cardTitle}>Change password</Text>
           </View>
+          <Text style={styles.cardSubtitle}>Use at least 8 characters</Text>
 
           <Text style={styles.fieldLabel}>CURRENT PASSWORD</Text>
           <TextInput
@@ -208,7 +232,7 @@ export default function AccountSettingsScreen() {
             value={currentPassword}
             onChangeText={setCurrentPassword}
             placeholder="Current password"
-            placeholderTextColor={C.textSecondary}
+            placeholderTextColor={C.textMuted}
             secureTextEntry
           />
 
@@ -218,17 +242,17 @@ export default function AccountSettingsScreen() {
             value={newPassword}
             onChangeText={setNewPassword}
             placeholder="New password"
-            placeholderTextColor={C.textSecondary}
+            placeholderTextColor={C.textMuted}
             secureTextEntry
           />
 
           <Text style={styles.fieldLabel}>CONFIRM NEW PASSWORD</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { marginBottom: 0 }]}
             value={confirmPassword}
             onChangeText={setConfirmPassword}
             placeholder="Confirm new password"
-            placeholderTextColor={C.textSecondary}
+            placeholderTextColor={C.textMuted}
             secureTextEntry
           />
         </View>
@@ -236,43 +260,52 @@ export default function AccountSettingsScreen() {
         {/* System Configuration */}
         <View style={styles.card}>
           <View style={styles.cardTitleRow}>
-            <Text style={styles.cardTitleIcon}>⚙️</Text>
-            <Text style={styles.cardTitle}>SYSTEM CONFIGURATION</Text>
+            <Ionicons name="settings" size={15} color={C.indigo} style={{ marginRight: 6 }} />
+            <Text style={styles.cardTitle}>System configuration</Text>
           </View>
           <Text style={styles.cardSubtitle}>Configure parking fees and system preferences</Text>
 
           <View style={styles.feeRow}>
             <View style={styles.feeCol}>
-              <Text style={styles.fieldLabel}>MOTOR FEE (₱ PER SESSION)</Text>
-              <TextInput
-                style={styles.input}
-                value={motorFee}
-                onChangeText={setMotorFee}
-                keyboardType="decimal-pad"
-                placeholder="0.00"
-                placeholderTextColor={C.textSecondary}
-              />
+              <Text style={styles.fieldLabel}>MOTOR FEE (PER SESSION)</Text>
+              <View style={styles.feeInputWrap}>
+                <Text style={styles.feeCurrency}>₱</Text>
+                <TextInput
+                  style={styles.feeInput}
+                  value={motorFee}
+                  onChangeText={setMotorFee}
+                  keyboardType="decimal-pad"
+                  placeholder="0.00"
+                  placeholderTextColor={C.textMuted}
+                />
+              </View>
             </View>
             <View style={styles.feeCol}>
-              <Text style={styles.fieldLabel}>4-WHEELER FEE (₱ PER SESSION)</Text>
-              <TextInput
-                style={styles.input}
-                value={fourWheelerFee}
-                onChangeText={setFourWheelerFee}
-                keyboardType="decimal-pad"
-                placeholder="0.00"
-                placeholderTextColor={C.textSecondary}
-              />
+              <Text style={styles.fieldLabel}>4-WHEELER FEE (PER SESSION)</Text>
+              <View style={styles.feeInputWrap}>
+                <Text style={styles.feeCurrency}>₱</Text>
+                <TextInput
+                  style={styles.feeInput}
+                  value={fourWheelerFee}
+                  onChangeText={setFourWheelerFee}
+                  keyboardType="decimal-pad"
+                  placeholder="0.00"
+                  placeholderTextColor={C.textMuted}
+                />
+              </View>
             </View>
           </View>
 
           <Text style={styles.feeNote}>
-            These fees will be automatically applied within your entire parking facility.
+            These fees will be automatically applied across your entire parking facility.
           </Text>
 
-          {/* Low enforcement / active settings notice */}
+          {/* Current active settings notice */}
           <View style={styles.activeSettingsBox}>
-            <Text style={styles.activeSettingsTitle}>⚠  Current active settings</Text>
+            <View style={styles.activeSettingsTitleRow}>
+              <Ionicons name="alert-circle" size={14} color={C.amber} style={{ marginRight: 6 }} />
+              <Text style={styles.activeSettingsTitle}>Current active settings</Text>
+            </View>
             <View style={styles.activeSettingsRow}>
               <Text style={styles.activeSettingsLabel}>System option</Text>
               <Text style={styles.activeSettingsValue}>{activeSettings.systemOption}</Text>
@@ -296,18 +329,19 @@ export default function AccountSettingsScreen() {
         </View>
 
         {/* Save changes button */}
-        <TouchableOpacity style={styles.saveButton} onPress={handleSaveChanges}>
-          <Text style={styles.saveButtonText}>💾  Save changes</Text>
+        <TouchableOpacity style={styles.saveButton} onPress={handleSaveChanges} activeOpacity={0.85}>
+          <Ionicons name="save" size={16} color={C.white} style={{ marginRight: 8 }} />
+          <Text style={styles.saveButtonText}>Save changes</Text>
         </TouchableOpacity>
 
         {/* Logout button */}
-        <TouchableOpacity 
-          style={styles.logoutButton} 
+        <TouchableOpacity
+          style={styles.logoutButton}
           onPress={handleLogout}
-          activeOpacity={0.6}
+          activeOpacity={0.7}
         >
-          <Ionicons name="log-out" size={20} color={C.errorText} />
-          <Text style={styles.logoutButtonText}>Logout</Text>
+          <Ionicons name="log-out-outline" size={18} color={C.errorText} />
+          <Text style={styles.logoutButtonText}>Log out</Text>
         </TouchableOpacity>
 
         <View style={{ height: 16 }} />
@@ -317,30 +351,30 @@ export default function AccountSettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: C.surface },
+  safeArea: { flex: 1, backgroundColor: C.navy },
 
-  header: {
-    backgroundColor: C.navy,
+  // Navbar — matches Overview
+  navbar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    backgroundColor: C.navy,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
   },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', flexShrink: 1 },
-  logoBadge: {
-    width: 26,
-    height: 26,
-    borderRadius: 6,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+  navLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 },
+  navLogoMark: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: C.white,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 10,
   },
-  logoBadgeText: { color: C.white, fontWeight: '700', fontSize: 13 },
-  headerTitle: { color: C.white, fontSize: 16, fontWeight: '700' },
-  headerSubtitle: { color: 'rgba(255,255,255,0.75)', fontSize: 11, marginTop: 1 },
-  avatarCircleHeader: {
+  navLogoText: { color: C.navy, fontWeight: '800', fontSize: 13 },
+  navRoleLabel: { color: C.teal, fontSize: 10, fontWeight: '700', marginBottom: 1 },
+  navBrand: { color: C.white, fontWeight: '700', fontSize: 15 },
+  backBtn: {
     width: 30,
     height: 30,
     borderRadius: 15,
@@ -348,54 +382,75 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { fontSize: 14 },
+  bellWrap: { position: 'relative', padding: 4 },
+  bellIcon: { fontSize: 18 },
+  bellDot: {
+    position: 'absolute', top: 4, right: 4,
+    width: 8, height: 8, borderRadius: 4,
+    backgroundColor: C.amber,
+    borderWidth: 1.5, borderColor: C.navy,
+  },
 
-  body: { flex: 1 },
-  bodyContent: { padding: 16, paddingBottom: 24 },
+  // Header — matches Overview
+  header: {
+    backgroundColor: C.navy,
+    paddingHorizontal: 16,
+    paddingBottom: 18,
+  },
+  headerTitle: { fontSize: 21, fontWeight: '800', color: C.white },
+  headerSubtitle: { fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 4 },
 
-  screenTitle: { fontSize: 20, fontWeight: '700', color: C.navy },
-  screenSubtitle: { fontSize: 13, color: C.textSecondary, marginTop: 2, marginBottom: 16 },
+  body: { flex: 1, backgroundColor: C.surface },
+  bodyContent: { padding: 16, paddingTop: 18, paddingBottom: 24 },
 
   profileCard: {
     backgroundColor: C.white,
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: C.border,
     alignItems: 'center',
-    paddingVertical: 20,
+    paddingVertical: 22,
     marginBottom: 14,
+    shadowColor: '#0B1B2E', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 3 },
+    elevation: 1,
   },
   profileAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#eef0fb',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: C.indigoLight,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 10,
   },
-  profileAvatarText: { fontSize: 24 },
-  profileName: { fontSize: 15, fontWeight: '700', color: C.textPrimary },
+  profileName: { fontSize: 15, fontWeight: '800', color: C.textPrimary },
   profileEmail: { fontSize: 12, color: C.textSecondary, marginTop: 2 },
+  rolePill: {
+    marginTop: 10,
+    backgroundColor: C.tealLight,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  rolePillText: { fontSize: 11, fontWeight: '700', color: C.teal },
 
   card: {
     backgroundColor: C.white,
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: C.border,
     padding: 16,
     marginBottom: 14,
+    shadowColor: '#0B1B2E', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 3 },
+    elevation: 1,
   },
-  cardTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  cardTitleIcon: { fontSize: 13, marginRight: 6 },
+  cardTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
   cardTitle: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '700',
     color: C.textPrimary,
-    letterSpacing: 0.4,
-    marginBottom: 12,
   },
-  cardSubtitle: { fontSize: 12, color: C.textSecondary, marginBottom: 14, marginTop: -6 },
+  cardSubtitle: { fontSize: 11, color: C.textMuted, marginBottom: 16 },
 
   fieldLabel: {
     fontSize: 10,
@@ -405,33 +460,45 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   input: {
-    borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 8,
+    backgroundColor: C.fieldBg,
+    borderRadius: 10,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 11,
     fontSize: 13,
     color: C.textPrimary,
     marginBottom: 14,
-    backgroundColor: C.white,
   },
 
-  feeRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  feeCol: { width: '48%' },
-  feeNote: { fontSize: 11, color: C.textSecondary, marginBottom: 14, marginTop: -4, lineHeight: 16 },
+  feeRow: { flexDirection: 'row', gap: 12 },
+  feeCol: { flex: 1 },
+  feeInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: C.fieldBg,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+  },
+  feeCurrency: { fontSize: 13, color: C.textSecondary, marginRight: 4, fontWeight: '600' },
+  feeInput: {
+    flex: 1,
+    paddingVertical: 11,
+    fontSize: 13,
+    color: C.textPrimary,
+  },
+  feeNote: { fontSize: 11, color: C.textMuted, marginTop: 10, marginBottom: 14, lineHeight: 16 },
 
   activeSettingsBox: {
     backgroundColor: C.amberBg,
     borderWidth: 1,
-    borderColor: C.amber,
-    borderRadius: 10,
+    borderColor: C.amberBorder,
+    borderRadius: 12,
     padding: 14,
   },
+  activeSettingsTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   activeSettingsTitle: {
     fontSize: 12,
     fontWeight: '700',
-    color: C.errorText,
-    marginBottom: 10,
+    color: C.textPrimary,
   },
   activeSettingsRow: {
     flexDirection: 'row',
@@ -449,26 +516,27 @@ const styles = StyleSheet.create({
 
   saveButton: {
     backgroundColor: C.navy,
-    borderRadius: 10,
+    borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
     marginTop: 4,
-    marginBottom: 8,
+    marginBottom: 10,
   },
   saveButtonText: { color: C.white, fontSize: 14, fontWeight: '700' },
-  
+
   logoutButton: {
-    backgroundColor: C.errorBg,
-    borderRadius: 10,
-    paddingVertical: 14,
+    backgroundColor: C.white,
+    borderRadius: 12,
+    paddingVertical: 13,
     paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
-    marginTop: 12,
-    marginBottom: 20,
-    borderWidth: 2,
+    gap: 8,
+    borderWidth: 1.5,
     borderColor: C.errorText,
   },
-  logoutButtonText: { color: C.errorText, fontSize: 16, fontWeight: '700', marginLeft: 10 },
+  logoutButtonText: { color: C.errorText, fontSize: 14, fontWeight: '700' },
 });

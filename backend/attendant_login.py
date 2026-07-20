@@ -2,19 +2,25 @@ from typing import Any, Dict
 
 from fastapi import HTTPException
 
-from db import fetch_one, verify_password
+try:
+    from .db import fetch_one, verify_password
+except ImportError:
+    from db import fetch_one, verify_password
 
 
-def authenticate_attendant(email: str, password: str) -> Dict[str, Any]:
-    email = (email or "").strip()
+def authenticate_attendant(identifier: str, password: str) -> Dict[str, Any]:
+    identifier = (identifier or "").strip()
     password = password or ""
 
-    if not email or not password:
+    if not identifier or not password:
         raise HTTPException(status_code=400, detail="Email and password are required")
 
+    normalized_identifier = identifier.lower()
+
+    # Allow login with either email or phone number from the UI
     row = fetch_one(
-        "SELECT id, role, first_name, last_name, email, password_hash, password_salt FROM users WHERE email = %s AND role = 'parking_attendant' AND is_active = 1 LIMIT 1",
-        [email],
+        "SELECT id, role, first_name, last_name, email, phone, password_hash, password_salt FROM users WHERE (LOWER(email) = %s OR phone = %s) AND role = 'parking_attendant' AND is_active = 1 LIMIT 1",
+        [normalized_identifier, identifier],
     )
     if not row or not verify_password(password, row.get("password_hash"), row.get("password_salt")):
         raise HTTPException(status_code=401, detail="Invalid credentials")

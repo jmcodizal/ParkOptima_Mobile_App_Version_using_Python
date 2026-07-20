@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 import mysql.connector
 
 DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
-DB_NAME = os.getenv("DB_NAME", "parkoptima")
+DB_NAME = os.getenv("DB_NAME", "parkoptima_db")
 DB_USER = os.getenv("DB_USER", "root")
 DB_PASS = os.getenv("DB_PASS", "")
 
@@ -57,6 +57,8 @@ def hash_password(password: str, salt: str) -> str:
 
 
 def verify_password(password: str, password_hash: Optional[str], password_salt: Optional[str]) -> bool:
-    if not password_hash or not password_salt:
+    # Accept empty string salts (older records may store ""),
+    # only None indicates a missing value that cannot be verified.
+    if password_hash is None or password_salt is None:
         return False
     return hash_password(password, password_salt) == password_hash

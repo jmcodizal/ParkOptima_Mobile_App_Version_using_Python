@@ -2,7 +2,7 @@ from typing import Any, Dict, List
 
 from fastapi import HTTPException
 
-from db import fetch_all, fetch_one, get_db_connection
+from .db import fetch_all, fetch_one, get_db_connection
 
 
 def get_payments(limit: int = 50) -> List[Dict[str, Any]]:

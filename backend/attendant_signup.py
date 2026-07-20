@@ -2,13 +2,16 @@ from typing import Any, Dict
 
 from fastapi import HTTPException
 
-from db import fetch_one, get_db_connection, hash_password
+try:
+    from .db import fetch_one, get_db_connection, hash_password
+except ImportError:
+    from db import fetch_one, get_db_connection, hash_password
 
 
 def register_attendant(payload: Dict[str, Any]) -> Dict[str, Any]:
     first_name = (payload.get("first_name") or "").strip()
     last_name = (payload.get("last_name") or "").strip()
-    email = (payload.get("email") or "").strip()
+    email = (payload.get("email") or "").strip().lower()
     phone = (payload.get("phone") or "").strip()
     password = payload.get("password") or ""
 
@@ -18,7 +21,10 @@ def register_attendant(payload: Dict[str, Any]) -> Dict[str, Any]:
     if len(password) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
 
-    existing_user = fetch_one("SELECT id FROM users WHERE email = %s LIMIT 1", [email])
+    existing_user = fetch_one(
+        "SELECT id FROM users WHERE TRIM(LOWER(email)) = %s LIMIT 1",
+        [email],
+    )
     if existing_user:
         raise HTTPException(status_code=409, detail="Email is already registered")
 

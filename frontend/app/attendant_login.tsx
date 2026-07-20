@@ -9,21 +9,28 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/lib/auth';
+import { apiRequest } from '../lib/api';
+import ForgotPasswordModal from '../components/forgot-password-modal';
+import { clearRememberedCredentials, loadRememberedCredentials, saveRememberedCredentials } from '../lib/remember-me';
 import LoginFormContainer from './login_form_container';
 
 const C = {
   navy: '#1E3A8A',
   navyDark: '#152a63',
   teal: '#14B8A6',
+  tealSoft: '#E6FBF6',
   red: '#DC2626',
+  subtitle: '#B91C1C',
   amber: '#F59E0B',
   bg: '#FFFFFF',
-  inputBg: '#F3F4F6',
+  inputBg: '#F9FAFB',
   inputBorder: '#E5E7EB',
   textPrimary: '#1F2937',
   textMuted: '#6B7280',
@@ -36,10 +43,54 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [remember, setRemember] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+
+  React.useEffect(() => {
+    const hydrate = async () => {
+      const saved = await loadRememberedCredentials<{ email: string; password: string; remember: boolean }>('attendant-login');
+      if (saved?.remember) {
+        setEmail(saved.email || '');
+        setPassword(saved.password || '');
+        setRemember(true);
+      }
+    };
+    hydrate();
+  }, []);
 
   const handleSignIn = async () => {
-    await signIn(1, 'attendant');
-    router.replace('/attendant/monitor');
+    if (!email.trim() || !password) {
+      Alert.alert('Validation Error', 'Email and password are required.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await apiRequest<{ user_id: number; role: string }>('/api/attendant/login', {
+        method: 'POST',
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+      });
+
+      if (remember) {
+        await saveRememberedCredentials('attendant-login', { email: email.trim().toLowerCase(), password, remember: true });
+      } else {
+        await clearRememberedCredentials('attendant-login');
+      }
+      await signIn(response.user_id, response.role);
+      router.replace('/attendant/monitor');
+    } catch (error) {
+      Alert.alert('Login Error', error instanceof Error ? error.message : 'Unable to log in.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (identifier: string, currentPassword: string, newPassword: string) => {
+    await apiRequest('/api/auth/password-reset', {
+      method: 'POST',
+      body: JSON.stringify({ identifier, current_password: currentPassword, new_password: newPassword }),
+    });
   };
 
   return (
@@ -47,6 +98,9 @@ export default function LoginScreen() {
       <StatusBar barStyle="light-content" backgroundColor={C.navy} />
 
       <View style={styles.header}>
+        <TouchableOpacity style={styles.backIconBtn} onPress={() => router.push('/get_started')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Ionicons name="chevron-back" size={18} color="#fff" />
+        </TouchableOpacity>
         <View style={styles.headerLeft}>
           <View style={styles.logoBox}>
             <Ionicons name="car-sport" size={16} color={C.navy} />
@@ -54,7 +108,7 @@ export default function LoginScreen() {
           <Text style={styles.headerTitle}>ParkOptima</Text>
         </View>
         <View style={styles.roleBadge}>
-          <Text style={styles.roleBadgeText}>PARKING ATTENDANT</Text>
+          <Text style={styles.roleBadgeText}>Parking Attendant</Text>
         </View>
       </View>
 
@@ -72,14 +126,16 @@ export default function LoginScreen() {
               <View style={styles.avatarCircle}>
                 <Ionicons name="person" size={30} color="#fff" />
               </View>
-              <Text style={styles.welcomeTitle}>Welcome back!</Text>
+              <Text style={styles.welcomeTitle}>Welcome back</Text>
               <Text style={styles.welcomeSubtitle}>
                 Sign in to your attendant account
               </Text>
 
               <Text style={styles.label}>EMAIL OR PHONE NUMBER</Text>
               <View style={styles.inputWrapper}>
-                <Ionicons name="mail-outline" size={16} color={C.teal} style={styles.inputIcon} />
+                <View style={styles.inputIconCircle}>
+                  <Ionicons name="mail" size={13} color="#fff" />
+                </View>
                 <TextInput
                   style={styles.input}
                   placeholder="attendant@parkoptima.com"
@@ -93,7 +149,9 @@ export default function LoginScreen() {
 
               <Text style={styles.label}>PASSWORD</Text>
               <View style={styles.inputWrapper}>
-                <Ionicons name="lock-closed-outline" size={16} color={C.teal} style={styles.inputIcon} />
+                <View style={styles.inputIconCircle}>
+                  <Ionicons name="lock-closed" size={13} color="#fff" />
+                </View>
                 <TextInput
                   style={styles.input}
                   placeholder="Password"
@@ -111,30 +169,44 @@ export default function LoginScreen() {
                 </TouchableOpacity>
               </View>
 
-              <TouchableOpacity style={styles.forgotWrapper} activeOpacity={0.8}>
-                <Text style={styles.forgotText}>Forgot password?</Text>
-              </TouchableOpacity>
+              <View style={styles.optionsRow}>
+                <TouchableOpacity style={styles.rememberRow} onPress={() => setRemember((value) => !value)} activeOpacity={0.7}>
+                  <View style={[styles.checkbox, remember && styles.checkboxChecked]}>
+                    {remember && <Ionicons name="checkmark" size={12} color="#fff" />}
+                  </View>
+                  <Text style={styles.rememberText}>Remember me</Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity style={styles.signInBtn} onPress={handleSignIn} activeOpacity={0.85}>
-                <Ionicons name="log-in-outline" size={16} color="#fff" />
-                <Text style={styles.signInText}>Sign In</Text>
+                <TouchableOpacity activeOpacity={0.8} onPress={() => setShowForgotPassword(true)}>
+                  <Text style={styles.forgotText}>Forgot password?</Text>
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity style={styles.signInBtn} onPress={handleSignIn} activeOpacity={0.85} disabled={loading}>
+                {loading ? (
+                  <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
+                ) : (
+                  <Ionicons name="log-in-outline" size={17} color="#fff" style={{ marginRight: 8 }} />
+                )}
+                <Text style={styles.signInText}>{loading ? 'Signing in...' : 'Sign In'}</Text>
               </TouchableOpacity>
 
               <View style={styles.signupRow}>
                 <Text style={styles.signupMuted}>Don&apos;t have an account? </Text>
-              <TouchableOpacity onPress={() => router.push('/attendant_signup')}>
+                <TouchableOpacity onPress={() => router.push('/attendant_signup')}>
                   <Text style={styles.signupLink}>Sign up here</Text>
                 </TouchableOpacity>
               </View>
-
-              <TouchableOpacity style={styles.backWrapper} onPress={() => router.push('/get_started')}>
-                <Ionicons name="arrow-back" size={12} color={C.textMuted} />
-                <Text style={styles.backText}>Back</Text>
-              </TouchableOpacity>
             </View>
           </LoginFormContainer>
         </ScrollView>
       </KeyboardAvoidingView>
+      <ForgotPasswordModal
+        visible={showForgotPassword}
+        role="parking_attendant"
+        onClose={() => setShowForgotPassword(false)}
+        onSubmit={handleForgotPassword}
+      />
     </SafeAreaView>
   );
 }
@@ -152,9 +224,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  backIconBtn: {
+    position: 'absolute',
+    left: 12,
+    top: 14,
+    zIndex: 2,
+    padding: 4,
+  },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginLeft: 22,
   },
   logoBox: {
     width: 24,
@@ -171,18 +251,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   roleBadge: {
-    backgroundColor: 'rgba(20,184,166,0.15)',
+    backgroundColor: 'rgba(255,255,255,0.95)',
     borderWidth: 1,
     borderColor: C.teal,
     borderRadius: 20,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
   roleBadgeText: {
     color: C.teal,
-    fontSize: 8,
+    fontSize: 10,
     fontWeight: '700',
-    letterSpacing: 0.5,
   },
   scrollContent: {
     flexGrow: 1,
@@ -197,23 +276,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   avatarCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     backgroundColor: C.teal,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 14,
+    shadowColor: C.teal,
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
   welcomeTitle: {
     color: C.navy,
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 21,
+    fontWeight: '800',
     textAlign: 'center',
   },
   welcomeSubtitle: {
-    color: C.textMuted,
+    color: C.subtitle,
     fontSize: 12,
+    fontWeight: '600',
     textAlign: 'center',
     marginTop: 4,
     marginBottom: 26,
@@ -222,7 +307,7 @@ const styles = StyleSheet.create({
   },
   label: {
     alignSelf: 'flex-start',
-    color: C.teal,
+    color: C.navy,
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.5,
@@ -235,12 +320,18 @@ const styles = StyleSheet.create({
     backgroundColor: C.inputBg,
     borderWidth: 1,
     borderColor: C.inputBorder,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 14,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     marginBottom: 16,
   },
-  inputIcon: {
+  inputIconCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: C.navy,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginRight: 10,
   },
   toggleButton: {
@@ -253,16 +344,40 @@ const styles = StyleSheet.create({
     fontSize: 13,
     padding: 0,
   },
-  forgotWrapper: {
+  optionsRow: {
     width: '100%',
-    alignItems: 'flex-end',
-    marginTop: -8,
-    marginBottom: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 22,
+  },
+  rememberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  checkbox: {
+    width: 18,
+    height: 18,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: C.inputBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    marginRight: 8,
+  },
+  checkboxChecked: {
+    backgroundColor: C.teal,
+    borderColor: C.teal,
+  },
+  rememberText: {
+    color: C.textMuted,
+    fontSize: 12,
   },
   forgotText: {
     color: C.teal,
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   signInBtn: {
     width: '100%',
@@ -270,9 +385,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 10,
-    marginBottom: 12,
+    paddingVertical: 15,
+    borderRadius: 12,
+    marginBottom: 14,
+    shadowColor: C.navy,
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
   signInText: {
     color: '#fff',
@@ -293,16 +413,5 @@ const styles = StyleSheet.create({
     color: C.teal,
     fontSize: 12,
     fontWeight: '700',
-  },
-  backWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 14,
-  },
-  backText: {
-    color: C.textMuted,
-    fontSize: 11,
-    fontWeight: '500',
   },
 });

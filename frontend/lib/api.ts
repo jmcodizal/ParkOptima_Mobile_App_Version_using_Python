@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
 const api = axios.create({
-  timeout: 15000,
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -49,7 +49,7 @@ const DEFAULT_API_BASE = (() => {
     return `http://${expoHost}:8000`;
   }
 
-  return Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000';
+  return Platform.OS === 'android' ? 'http://10.0.2.2:8001' : 'http://localhost:8001';
 })();
 
 const isExpoTunnelHost = (value: string) => {

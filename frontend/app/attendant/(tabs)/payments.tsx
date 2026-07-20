@@ -6,7 +6,13 @@ import {
   TouchableOpacity,
   StyleSheet,
   StatusBar,
+  Alert,
+  Modal,
 } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Colors } from '@/constants/theme';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { Ionicons } from '@expo/vector-icons';
 import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
 import TopBar from '@/components/ui/top-bar';
@@ -25,7 +31,7 @@ const COLORS = {
   textPrimary: '#2C2C33',
   textSecondary: '#6A707F',
   textMuted: '#6A707F',
-  border: '#D4D6D8',
+  border: '#E4E6E8',
   unpaidBg: '#FFF4E5',
   unpaidText: '#F39C12',
   paidBg: '#E8F8EE',
@@ -36,14 +42,19 @@ const COLORS = {
 };
 
 type Payment = {
+  transactionId: number;
   id: string;
   name: string;
+  plate: string;
+  ownerName: string;
+  method: string;
   brand: string;
   model: string;
   color: string;
   entry: string;
   exit: string;
   fee: string;
+  amount: string;
   status: 'Unpaid' | 'Paid';
 };
 
@@ -52,19 +63,13 @@ type Payment = {
 const StatCard = ({
   label,
   value,
-  accent,
 }: {
   label: string;
   value: string | number;
-  accent?: boolean;
 }) => (
-  <View style={[styles.statCard, accent && styles.statCardAccent]}>
-    <Text style={[styles.statValue, accent && styles.statValueAccent]}>
-      {value}
-    </Text>
-    <Text style={[styles.statLabel, accent && styles.statLabelAccent]}>
-      {label}
-    </Text>
+  <View style={styles.statCard}>
+    <Text style={styles.statValue}>{value}</Text>
+    <Text style={styles.statLabel}>{label}</Text>
   </View>
 );
 
@@ -74,8 +79,8 @@ const PaymentCard = ({
   onSkip,
 }: {
   payment: Payment;
-  onMarkPaid: (id: string) => void;
-  onSkip: (id: string) => void;
+  onMarkPaid: (transactionId: number) => void;
+  onSkip: (transactionId: number) => void;
 }) => {
   const isPaid = payment.status === 'Paid';
 
@@ -134,13 +139,13 @@ const PaymentCard = ({
         <View style={styles.actionRow}>
           <TouchableOpacity
             style={styles.markPaidBtn}
-            onPress={() => onMarkPaid(payment.id)}
+            onPress={() => onMarkPaid(payment.transactionId)}
             activeOpacity={0.8}>
             <Text style={styles.markPaidText}>Mark Paid</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.skipBtn}
-            onPress={() => onSkip(payment.id)}
+            onPress={() => onSkip(payment.transactionId)}
             activeOpacity={0.8}>
             <Text style={styles.skipText}>Skip</Text>
           </TouchableOpacity>
@@ -155,6 +160,8 @@ const PaymentCard = ({
 };
 
 export default function PaymentManagement() {
+  const router = useRouter();
+  const [scanModalVisible, setScanModalVisible] = useState(false);
   const [payments, setPayments] = useState<Payment[]>([]);
 
   useEffect(() => {
@@ -162,20 +169,25 @@ export default function PaymentManagement() {
 
     const load = async () => {
       try {
-        const txs = await apiRequest<any[]>('/api/transactions/recent');
-        if (!mounted || !Array.isArray(txs)) return;
+const txs = await apiRequest<any[]>('/api/payments');
+      if (!mounted || !Array.isArray(txs)) return;
 
-        const mapped: Payment[] = txs.map(t => ({
-          id: String(t.id ?? t.transaction_uuid ?? ''),
-          name: t.owner_name || 'Unknown',
-          brand: t.vehicle_plate || '',
-          model: t.method || '',
-          color: '',
-          entry: t.created_at ? new Date(t.created_at).toLocaleString() : '--',
-          exit: '--',
-          fee: (typeof t.amount === 'number' ? `${t.currency || ''} ${t.amount}` : String(t.amount ?? '')),
-          status: (t.status === 'completed' || t.status === 'paid') ? 'Paid' : 'Unpaid',
-        }));
+      const mapped: Payment[] = txs.map(t => ({
+        transactionId: Number(t.id ?? 0),
+        id: String(t.transaction_uuid ?? t.id ?? ''),
+        name: t.owner_name || 'Unknown',
+        plate: t.plate || 'N/A',
+        ownerName: t.owner_name || 'Unknown',
+        method: t.method || 'cash',
+        brand: t.reference || 'N/A',
+        model: t.currency || 'N/A',
+        color: '-',
+        entry: t.created_at ? new Date(t.created_at).toLocaleString() : '--',
+        exit: t.status === 'completed' ? 'Paid' : 'Pending',
+        fee: (typeof t.amount === 'number' ? `₱${t.amount.toFixed(2)}` : String(t.amount ?? '₱0.00')),
+        amount: (typeof t.amount === 'number' ? `₱${t.amount.toFixed(2)}` : String(t.amount ?? '₱0.00')),
+        status: (t.status === 'completed' || t.status === 'paid') ? 'Paid' : 'Unpaid',
+      }));
 
         setPayments(mapped);
       } catch (err) {
@@ -191,14 +203,23 @@ export default function PaymentManagement() {
   const paidCount = payments.filter(p => p.status === 'Paid').length;
   const unpaidCount = payments.filter(p => p.status === 'Unpaid').length;
 
-  const handleMarkPaid = (id: string) => {
-    setPayments(prev =>
-      prev.map(p => (p.id === id ? { ...p, status: 'Paid' } : p)),
-    );
+  const handleMarkPaid = async (transactionId: number) => {
+    try {
+      await apiRequest(`/api/payments/${transactionId}/pay`, {
+        method: 'POST',
+      });
+      setPayments(prev =>
+        prev.map(p =>
+          p.transactionId === transactionId ? { ...p, status: 'Paid', exit: 'Paid' } : p,
+        ),
+      );
+    } catch (error) {
+      Alert.alert('Payment error', error instanceof Error ? error.message : 'Unable to mark payment paid');
+    }
   };
 
-  const handleSkip = (id: string) => {
-    setPayments(prev => prev.filter(p => p.id !== id));
+  const handleSkip = (transactionId: number) => {
+    setPayments(prev => prev.filter(p => p.transactionId !== transactionId));
   };
 
   return (
@@ -218,44 +239,159 @@ export default function PaymentManagement() {
           <ThemedText style={styles.pageSubtitle}>
             Confirm and track parking fee payments
           </ThemedText>
-          <ThemedText style={styles.lastUpdated}>
-            Last updated: {new Date().toLocaleTimeString()}
-          </ThemedText>
+          <View style={styles.lastUpdatedRow}>
+            <Ionicons name="time-outline" size={12} color={COLORS.textMuted} />
+            <ThemedText style={styles.lastUpdated}>
+              Last updated: {new Date().toLocaleTimeString()}
+            </ThemedText>
+          </View>
         </View>
 
-        <View style={styles.controlsRow}>
-          <TouchableOpacity style={styles.exportBtn} activeOpacity={0.8}>
-            <ThemedText style={styles.exportText}>⬇ Export CSV</ThemedText>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={styles.exportBtn} activeOpacity={0.85}>
+          <Ionicons name="download-outline" size={15} color="#fff" style={{ marginRight: 8 }} />
+          <ThemedText style={styles.exportText}>Export CSV</ThemedText>
+        </TouchableOpacity>
 
         <View style={styles.statsRow}>
           <StatCard label="Paid today" value={paidCount} />
-          <StatCard label="Unpaid" value={unpaidCount} accent />
+          <StatCard label="Unpaid" value={unpaidCount} />
           <StatCard label="Fixed fee / session" value="₱10" />
         </View>
 
-        <View style={styles.sectionRow}>
-          <ThemedText style={styles.sectionLabel}>Payment Confirmation</ThemedText>
-          <ThemedText style={styles.sectionLabelRight}>Pending Payments</ThemedText>
+        <View style={styles.tabsRow}>
+          <View style={styles.tabPillActive}>
+            <ThemedText style={styles.tabTextActive}>Payment Confirmation</ThemedText>
+          </View>
+          <View style={styles.tabPillInactive}>
+            <ThemedText style={styles.tabTextInactive}>Pending Payments</ThemedText>
+          </View>
         </View>
 
-        {payments.map(payment => (
-          <PaymentCard
-            key={payment.id}
-            payment={payment}
-            onMarkPaid={handleMarkPaid}
-            onSkip={handleSkip}
-          />
-        ))}
+        {payments.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="document-text-outline" size={26} color={COLORS.border} />
+            <ThemedText style={styles.emptyText}>No payments to confirm yet</ThemedText>
+          </View>
+        ) : (
+          payments.map(payment => (
+            <PaymentCard
+              key={payment.transactionId}
+              payment={payment}
+              onMarkPaid={handleMarkPaid}
+              onSkip={handleSkip}
+            />
+          ))
+        )}
 
         <View style={{ height: 32 }} />
       </ScrollView>
+      <TouchableOpacity style={styles.fab} onPress={() => setScanModalVisible(true)}>
+        <IconSymbol size={32} name="camera" color="#ffffff" />
+      </TouchableOpacity>
+      <Modal
+        visible={scanModalVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setScanModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Choose scan type</Text>
+            <View style={styles.modalButtonsRow}>
+              <TouchableOpacity
+                style={styles.modalButton}
+                onPress={() => {
+                  setScanModalVisible(false);
+                  router.push('/attendant/scan');
+                }}
+              >
+                <IconSymbol name="qrcode" size={28} color={Colors.light.tint} />
+                <Text style={styles.modalButtonText}>Entry</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalButton}
+                onPress={() => {
+                  setScanModalVisible(false);
+                  router.push('/attendant/scan-out');
+                }}
+              >
+                <IconSymbol name="qrcode" size={28} color={Colors.light.tint} />
+                <Text style={styles.modalButtonText}>Exit</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity onPress={() => setScanModalVisible(false)} style={styles.modalClose}>
+              <Text style={styles.modalCloseText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
+  fab: {
+    position: 'absolute',
+    bottom: 28,
+    right: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: Colors.light.tint,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContainer: {
+    width: '100%',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 18,
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  modalButtonsRow: {
+    flexDirection: 'row',
+    width: '100%',
+    justifyContent: 'space-around',
+    marginBottom: 12,
+  },
+  modalButton: {
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    minWidth: 110,
+  },
+  modalButtonText: {
+    marginTop: 8,
+    fontWeight: '600',
+    color: '#333',
+  },
+  modalClose: {
+    marginTop: 6,
+    paddingVertical: 8,
+  },
+  modalCloseText: {
+    color: Colors.light.tabIconDefault,
+    fontWeight: '600',
+  },
   container: {
     flex: 1,
     backgroundColor: COLORS.white,
@@ -268,7 +404,7 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   header: {
-    marginBottom: 18,
+    marginBottom: 16,
   },
   headerRow: {
     flexDirection: 'row',
@@ -277,34 +413,41 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   pageTitle: {
-    marginBottom: 6,
-    color: '#2C2C33',
+    marginBottom: 4,
+    color: '#1F2430',
+    fontSize: 20,
+    fontWeight: '800',
   },
   pageSubtitle: {
-    color: '#6A707F',
-    fontSize: 15,
-    lineHeight: 22,
-    marginBottom: 4,
+    color: COLORS.teal,
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 18,
+    marginBottom: 6,
+  },
+  lastUpdatedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   lastUpdated: {
-    fontSize: 13,
-    color: '#a0aac7',
+    fontSize: 12,
+    color: COLORS.textMuted,
   },
 
   logoutBtn: {
     padding: 6,
     borderRadius: 8,
   },
-  controlsRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginBottom: 12,
-  },
   exportBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: COLORS.navy,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    width: '100%',
+    paddingVertical: 13,
     borderRadius: 12,
+    marginBottom: 16,
   },
   exportText: {
     color: '#ffffff',
@@ -313,55 +456,73 @@ const styles = StyleSheet.create({
   },
   statsRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 10,
-    marginBottom: 18,
+    marginBottom: 16,
   },
   statCard: {
     flex: 1,
-    borderRadius: 20,
+    borderRadius: 14,
     backgroundColor: COLORS.white,
-    padding: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
     borderWidth: 1,
     borderColor: COLORS.border,
     alignItems: 'center',
   },
-  statCardAccent: {
-    backgroundColor: COLORS.white,
-    borderColor: COLORS.border,
-  },
   statValue: {
-    color: '#2C2C33',
-    fontSize: 22,
-    fontWeight: '700',
-  },
-  statValueAccent: {
-    color: '#2C2C33',
+    color: COLORS.teal,
+    fontSize: 20,
+    fontWeight: '800',
   },
   statLabel: {
     color: COLORS.textSecondary,
-    fontSize: 12,
-    marginTop: 6,
+    fontSize: 11,
+    marginTop: 4,
     textAlign: 'center',
   },
-  statLabelAccent: {
-    color: '#9fb1ff',
-  },
-  sectionRow: {
+  tabsRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginBottom: 10,
+    gap: 8,
+    marginBottom: 14,
   },
-  sectionLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.textPrimary,
+  tabPillActive: {
+    backgroundColor: COLORS.navy,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
   },
-  sectionLabelRight: {
-    fontSize: 13,
-    fontWeight: '600',
+  tabPillInactive: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  tabTextActive: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  tabTextInactive: {
     color: COLORS.textSecondary,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 36,
+    borderRadius: 16,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    gap: 8,
+  },
+  emptyText: {
+    color: COLORS.amber,
+    fontSize: 13,
+    fontWeight: '600',
   },
   card: {
     borderRadius: 16,

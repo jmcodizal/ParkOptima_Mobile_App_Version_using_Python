@@ -2,7 +2,7 @@ from typing import Any, Dict
 
 from fastapi import HTTPException
 
-from db import fetch_one, get_db_connection
+from .db import fetch_one, get_db_connection
 
 
 def create_parking_session(payload: Dict[str, Any]) -> Dict[str, Any]:

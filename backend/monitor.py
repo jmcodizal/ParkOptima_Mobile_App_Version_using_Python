@@ -1,6 +1,6 @@
 from typing import Any, Dict, List
 
-from db import fetch_all, fetch_one
+from .db import fetch_all, fetch_one
 
 
 def get_monitor_summary() -> Dict[str, Any]:

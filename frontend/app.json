@@ -4,6 +4,9 @@
     "slug": "ParkOptima",
     "version": "1.0.0",
     "orientation": "portrait",
+    "cli": {
+      "appVersionSource": "dynamic"
+    },
     "icon": "./assets/images/icon.png",
     "scheme": "parkoptima",
     "userInterfaceStyle": "automatic",
@@ -12,6 +15,7 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.parkoptima.mobile",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -43,6 +47,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "a8452820-4726-441f-9f05-106ae319b40e"
+      }
     }
   }
 }

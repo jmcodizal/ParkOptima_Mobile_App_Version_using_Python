@@ -11,24 +11,37 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import { Colors } from '@/constants/theme';
 import { apiRequest } from '../../../lib/api';
 
 const C = {
-  navy: Colors.light.tint,
-  navyDark: '#0e1620',
+  navy: '#1E3A8A',
+  navyDark: '#08131F',
   white: Colors.light.background,
-  surface: '#F5F6F8',
-  border: '#D4D6D8',
+  surface: '#F4F6F9',
+  border: '#E4E7EC',
   textPrimary: Colors.light.text,
   textSecondary: '#6B7A8D',
-  textMuted: '#a0aac7',
+  textMuted: '#9AA5B8',
   amber: '#F59E0B',
+  amberLight: '#FEF3E2',
   blue: '#3B82F6',
+  indigo: '#4F5FE0',
   red: '#EF4444',
   orange: '#F97316',
-  teal: '#13B4AA',
+  green: '#10B981',
+  greenLight: '#DCFCE9',
+  teal: '#0EA5A0',
+  tealLight: '#DBF5F2',
+  navyLight: '#E7E9FB',
+  amberChip: '#FDECD1',
+  gradientStart: '#1E2B6B',
+  gradientEnd: '#3562C9',
+  cardTeal: '#14B8A6',
+  cardNavy: '#1E2A5A',
+  cardOrange: '#F97316',
 };
 
 const { width } = Dimensions.get('window');
@@ -57,9 +70,9 @@ function DualSparkLine({ revenue, entries }: { revenue: number[]; entries: numbe
           style={{
             position: 'absolute',
             left: x1, top: y1,
-            width: len, height: 2,
+            width: len, height: 2.5,
             backgroundColor: color,
-            borderRadius: 1,
+            borderRadius: 1.5,
             transform: [{ rotate: `${angle}deg` }],
             transformOrigin: '0 0',
           }}
@@ -71,7 +84,7 @@ function DualSparkLine({ revenue, entries }: { revenue: number[]; entries: numbe
     <View>
       <View style={{ height: H, width: CHART_W, position: 'relative' }}>
         {renderLine(revenue, C.teal)}
-        {renderLine(entries, C.blue)}
+        {renderLine(entries, C.indigo)}
       </View>
       <View style={styles.legendRow}>
         <View style={styles.legendItem}>
@@ -79,7 +92,7 @@ function DualSparkLine({ revenue, entries }: { revenue: number[]; entries: numbe
           <Text style={styles.legendLabel}>Revenue</Text>
         </View>
         <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: C.blue }]} />
+          <View style={[styles.legendDot, { backgroundColor: C.indigo }]} />
           <Text style={styles.legendLabel}>Entries</Text>
         </View>
       </View>
@@ -87,61 +100,71 @@ function DualSparkLine({ revenue, entries }: { revenue: number[]; entries: numbe
   );
 }
 
-// Bar chart for occupancy by hour
+// Bar chart for occupancy by hour/day
 function OccupancyBars({ values }: { values: number[] }) {
   const hours = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const bars = values.map((value, index) => ({ label: hours[index] || `D${index + 1}`, value, peak: value === Math.max(...values) }));
   const maxVal = Math.max(...values, 1);
   const BAR_H = 70;
-  const barW = (CHART_W - bars.length * 4) / bars.length;
+  const barW = (CHART_W - bars.length * 10) / bars.length;
 
   return (
     <View>
-      <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: BAR_H, gap: 4 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: BAR_H, gap: 10 }}>
         {bars.map((b, i) => (
-          <View key={i} style={{ alignItems: 'center', gap: 2, flexDirection: 'row', alignSelf: 'flex-end' }}>
+          <View key={i} style={{ alignItems: 'center', flex: 1 }}>
             <View
               style={{
-                width: barW - 1,
-                height: (b.value / maxVal) * BAR_H,
-                backgroundColor: b.peak ? C.red : C.amber,
-                borderRadius: 2,
+                width: '100%',
+                maxWidth: barW,
+                height: Math.max(6, (b.value / maxVal) * BAR_H),
+                backgroundColor: b.peak ? C.orange : C.indigo,
+                borderRadius: 6,
               }}
             />
           </View>
         ))}
       </View>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
         {bars.map(b => (
-          <Text key={b.label} style={styles.chartXLabel}>{b.label}</Text>
+          <Text key={b.label} style={[styles.chartXLabel, { flex: 1, textAlign: 'center' }, b.peak && { color: C.orange, fontWeight: '700' }]}>{b.label}</Text>
         ))}
       </View>
     </View>
   );
 }
 
-// Pie chart using border trick (donut approximation)
+// Donut chart with centered total count
 function PieChart({ fourWheel, twoWheel }: { fourWheel: number; twoWheel: number }) {
   const total = Math.max(1, fourWheel + twoWheel);
   const fourWheelPct = Math.round((fourWheel / total) * 100);
-  const twoWheelPct = Math.round((twoWheel / total) * 100);
+  const twoWheelPct = 100 - fourWheelPct;
 
   return (
-    <View style={styles.pieWrap}>
+    <View style={styles.pieRow}>
       <View style={styles.pieOuter}>
         <View style={styles.pieInnerWrap}>
           <View style={styles.pieTeal} />
         </View>
-        <View style={styles.pieCenter} />
-      </View>
-      <View style={styles.pieLegendRow}>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: C.navy }]} />
-          <Text style={styles.legendLabel}>4-wheels ({fourWheelPct}%)</Text>
+        <View style={styles.pieCenter}>
+          <Text style={styles.pieCenterValue}>{total}</Text>
+          <Text style={styles.pieCenterLabel}>VEHICLES</Text>
         </View>
-        <View style={styles.legendItem}>
+      </View>
+      <View style={styles.pieLegendCol}>
+        <View style={styles.pieLegendItem}>
+          <View style={[styles.legendDot, { backgroundColor: C.navy }]} />
+          <View>
+            <Text style={styles.pieLegendLabel}>4-wheels</Text>
+            <Text style={styles.pieLegendValue}>{fourWheelPct}% · {fourWheel}</Text>
+          </View>
+        </View>
+        <View style={styles.pieLegendItem}>
           <View style={[styles.legendDot, { backgroundColor: C.teal }]} />
-          <Text style={styles.legendLabel}>2-wheels ({twoWheelPct}%)</Text>
+          <View>
+            <Text style={styles.pieLegendLabel}>2-wheels</Text>
+            <Text style={styles.pieLegendValue}>{twoWheelPct}% · {twoWheel}</Text>
+          </View>
         </View>
       </View>
     </View>
@@ -149,6 +172,12 @@ function PieChart({ fourWheel, twoWheel }: { fourWheel: number; twoWheel: number
 }
 
 type Period = 'Daily' | 'Weekly' | 'Monthly';
+
+const PERIOD_COLORS: Record<Period, string> = {
+  Daily: C.navy,
+  Weekly: C.teal,
+  Monthly: C.orange,
+};
 
 export default function AnalyticsScreen() {
   const [period, setPeriod] = useState<Period>('Daily');
@@ -190,64 +219,100 @@ export default function AnalyticsScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor={C.navy} />
+      <StatusBar barStyle="light-content" backgroundColor={C.gradientStart} />
 
-      {/* Navbar */}
-      <View style={styles.navbar}>
-        <View style={styles.navLeft}>
-          <View style={styles.navLogoMark}>
-            <Text style={styles.navLogoText}>P</Text>
-          </View>
-          <Text style={styles.navTitle}>Analytics</Text>
+      {/* Navbar + Header — gradient, matches reference screenshot */}
+      <LinearGradient
+        colors={[C.gradientStart, C.gradientEnd]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.headerGradient}>
+        <View style={styles.navbar}>
+                <View style={styles.navLeft}>
+                  <View style={styles.navLogoMark}>
+                   <Ionicons name="car-sport" size={16} color={C.navy} />
+                  </View>
+                  <Text style={styles.navBrand}>ParkOptima</Text>
+                </View>
+                <TouchableOpacity style={styles.bellWrap}>
+                  <Text style={styles.bellIcon}>🔔</Text>
+                  <View style={styles.bellDot} />
+                </TouchableOpacity>
+              </View>
+
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Analytics</Text>
+          <Text style={styles.headerSubtitle}>Here's how today is tracking</Text>
         </View>
-      </View>
+
+        {/* Period Tabs — inside the gradient header */}
+        <View style={styles.periodTabs}>
+          {(['Daily', 'Weekly', 'Monthly'] as Period[]).map(p => (
+            <TouchableOpacity
+              key={p}
+              style={[styles.periodTab, period === p && styles.periodTabActive]}
+              onPress={() => setPeriod(p)}
+              activeOpacity={0.7}>
+              <Text
+                style={[
+                  styles.periodTabText,
+                  { color: PERIOD_COLORS[p] },
+                  period === p && styles.periodTabTextActive,
+                ]}>
+                {p}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </LinearGradient>
 
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}>
 
-        {/* Period Tabs */}
-        <View style={styles.periodTabs}>
-          {(['Daily', 'Weekly', 'Monthly'] as Period[]).map(p => (
-            <TouchableOpacity
-              key={p}
-              style={styles.periodTab}
-              onPress={() => setPeriod(p)}
-              activeOpacity={0.7}>
-              <Text style={[styles.periodTabText, period === p && styles.periodTabTextActive]}>
-                {p}
-              </Text>
-              {period === p && <View style={styles.periodTabUnderline} />}
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Summary Cards */}
+        {/* Summary Cards — solid color cards matching reference */}
         <View style={styles.summaryRow}>
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>Total revenue</Text>
+          <View style={[styles.summaryCard, { backgroundColor: C.cardTeal }]}>
+            <View style={styles.summaryIconWrap}>
+              <Text style={styles.summaryIcon}>💰</Text>
+            </View>
+            <Text style={styles.summaryLabel}>REVENUE</Text>
             <Text style={styles.summaryValue}>{loading ? '—' : `₱${Number(analytics?.total_revenue || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</Text>
+            <Text style={styles.summarySub}>total collected</Text>
           </View>
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>Total entries</Text>
+          <View style={[styles.summaryCard, { backgroundColor: C.cardNavy }]}>
+            <View style={styles.summaryIconWrap}>
+              <Text style={styles.summaryIcon}>🚘</Text>
+            </View>
+            <Text style={styles.summaryLabel}>ENTRIES</Text>
             <Text style={styles.summaryValue}>{analytics?.total_transactions ?? 0}</Text>
+            <Text style={styles.summarySub}>vehicles logged</Text>
           </View>
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>Peak hour</Text>
-            <Text style={[styles.summaryValue, { color: C.amber }]}>{reports?.peak_entry_time || 'N/A'}</Text>
+          <View style={[styles.summaryCard, { backgroundColor: C.cardOrange }]}>
+            <View style={styles.summaryIconWrap}>
+              <Text style={styles.summaryIcon}>⏱️</Text>
+            </View>
+            <Text style={styles.summaryLabel}>PEAK</Text>
+            <Text style={styles.summaryValue}>{reports?.peak_entry_time || 'N/A'}</Text>
+            <Text style={styles.summarySub}>busiest hour</Text>
           </View>
         </View>
 
         {/* Revenue & Entries Trend */}
         <View style={styles.chartCard}>
-          <Text style={styles.chartTitle}>Revenue & entries trend</Text>
+          <View style={styles.chartHeaderRow}>
+            <Text style={styles.chartTitle}>Revenue & entries trend</Text>
+            <View style={styles.trendBadge}>
+              <Text style={styles.trendBadgeText}>↑ 12% vs yesterday</Text>
+            </View>
+          </View>
           {loading ? <ActivityIndicator size="small" color={C.teal} /> : <DualSparkLine revenue={revenueSeries} entries={entrySeries} />}
         </View>
 
-        {/* Occupancy by Hour */}
+        {/* Weekly Occupancy */}
         <View style={styles.chartCard}>
-          <Text style={styles.chartTitle}>Occupancy by hour</Text>
+          <Text style={styles.chartTitle}>Weekly occupancy</Text>
           {loading ? <ActivityIndicator size="small" color={C.teal} /> : <OccupancyBars values={(analytics?.series || []).map((item: any) => Number(item.transactions || 0))} />}
         </View>
 
@@ -264,62 +329,103 @@ export default function AnalyticsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: C.navy },
+  safeArea: { flex: 1, backgroundColor: C.gradientStart },
 
+  // Gradient header wrapper (navbar + title + period tabs)
+  headerGradient: {
+    paddingBottom: 16,
+  },
+
+  // Navbar
   navbar: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: C.navy,
+    justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 12,
   },
-  navLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  navLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   navLogoMark: {
-    width: 28, height: 28, borderRadius: 6,
-    backgroundColor: C.teal,
+    width: 24, height: 24, borderRadius: 7,
+    backgroundColor: C.white,
     alignItems: 'center', justifyContent: 'center',
   },
-  navLogoText: { color: C.white, fontWeight: '800', fontSize: 14 },
-  navTitle: { color: C.white, fontWeight: '700', fontSize: 18 },
+  navLogoText: { color: C.gradientStart, fontWeight: '800', fontSize: 12 },
+  navBrand: { color: C.white, fontWeight: '700', fontSize: 15 },
+  bellWrap: { position: 'relative', padding: 4 },
+  bellIcon: { fontSize: 18, color: C.white },
+  bellDot: {
+    position: 'absolute', top: 2, right: 2,
+    width: 7, height: 7, borderRadius: 4,
+    backgroundColor: C.orange,
+    borderWidth: 1.5, borderColor: C.gradientStart,
+  },
 
-  scroll: { flex: 1, backgroundColor: C.white },
-  scrollContent: { padding: 16 },
+  // Header title block
+  header: {
+    paddingHorizontal: 16, paddingBottom: 16,
+  },
+  headerTitle: { fontSize: 24, fontWeight: '800', color: C.white },
+  headerSubtitle: { fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 3 },
 
-  // Period Tabs
+  scroll: { flex: 1, backgroundColor: C.surface },
+  scrollContent: { padding: 16, paddingTop: 16 },
+
+  // Period Tabs — sit inside the gradient header
   periodTabs: {
-    flexDirection: 'row', gap: 0,
-    borderBottomWidth: 1, borderBottomColor: C.border,
-    marginBottom: 16,
+    flexDirection: 'row', gap: 4,
+    backgroundColor: C.white, borderRadius: 12, padding: 4,
+    marginHorizontal: 16,
   },
-  periodTab: { paddingVertical: 8, paddingHorizontal: 16, position: 'relative' },
-  periodTabText: { fontSize: 14, fontWeight: '600', color: C.textMuted },
-  periodTabTextActive: { color: C.navy },
-  periodTabUnderline: {
-    position: 'absolute', bottom: -1, left: 16, right: 16,
-    height: 2, backgroundColor: C.amber, borderRadius: 1,
+  periodTab: {
+    flex: 1, paddingVertical: 9, borderRadius: 9,
+    alignItems: 'center',
   },
+  periodTabActive: { backgroundColor: C.navy },
+  periodTabText: { fontSize: 13, fontWeight: '700' },
+  periodTabTextActive: { color: C.white },
 
-  // Summary Cards
+  // Summary Cards — solid color cards
   summaryRow: {
-    flexDirection: 'row', gap: 8, marginBottom: 14,
+    flexDirection: 'row', gap: 10, marginBottom: 14,
   },
   summaryCard: {
-    flex: 1, backgroundColor: C.white,
-    borderRadius: 10, padding: 12,
-    borderWidth: 1, borderColor: C.border,
+    flex: 1,
+    borderRadius: 14, padding: 12,
+    shadowColor: '#0B1B2E', shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 3 },
+    elevation: 1,
   },
-  summaryLabel: { fontSize: 10, color: C.textMuted, marginBottom: 4, fontWeight: '500' },
-  summaryValue: { fontSize: 18, fontWeight: '800', color: C.textPrimary },
+  summaryIconWrap: {
+    width: 26, height: 26, borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 8,
+  },
+  summaryIcon: { fontSize: 13 },
+  summaryLabel: { fontSize: 9, color: 'rgba(255,255,255,0.85)', marginBottom: 4, fontWeight: '700', letterSpacing: 0.4 },
+  summaryValue: { fontSize: 14, fontWeight: '800', color: C.white },
+  summarySub: { fontSize: 9, color: 'rgba(255,255,255,0.75)', marginTop: 3 },
 
   // Chart Cards
   chartCard: {
     backgroundColor: C.white,
-    borderRadius: 12, padding: 14,
-    marginBottom: 12,
+    borderRadius: 16, padding: 16,
+    marginBottom: 14,
     borderWidth: 1, borderColor: C.border,
+    shadowColor: '#0B1B2E', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 3 },
+    elevation: 1,
+  },
+  chartHeaderRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginBottom: 14, flexWrap: 'wrap', gap: 6,
   },
   chartTitle: {
     fontSize: 14, fontWeight: '700',
-    color: C.textPrimary, marginBottom: 14,
+    color: C.textPrimary,
   },
+  trendBadge: {
+    backgroundColor: C.tealLight, paddingHorizontal: 8, paddingVertical: 3,
+    borderRadius: 20,
+  },
+  trendBadgeText: { fontSize: 10, fontWeight: '700', color: C.teal },
   chartXLabel: { fontSize: 9, color: C.textMuted },
 
   // Legend
@@ -328,30 +434,35 @@ const styles = StyleSheet.create({
   legendDot: { width: 8, height: 8, borderRadius: 4 },
   legendLabel: { fontSize: 11, color: C.textSecondary },
 
-  // Pie
-  pieWrap: { alignItems: 'center' },
+  // Pie / Donut
+  pieRow: { flexDirection: 'row', alignItems: 'center', gap: 20 },
   pieOuter: {
-    width: 110, height: 110, borderRadius: 55,
+    width: 100, height: 100, borderRadius: 50,
     backgroundColor: C.navy,
     overflow: 'hidden',
-    marginBottom: 12,
     position: 'relative',
     alignItems: 'center', justifyContent: 'center',
   },
   pieInnerWrap: {
     position: 'absolute', right: 0, top: 0,
-    width: 55, height: 110,
+    width: 50, height: 100,
     overflow: 'hidden',
   },
   pieTeal: {
-    width: 110, height: 110, borderRadius: 55,
+    width: 100, height: 100, borderRadius: 50,
     backgroundColor: C.teal,
   },
   pieCenter: {
-    width: 50, height: 50, borderRadius: 25,
+    width: 66, height: 66, borderRadius: 33,
     backgroundColor: C.white,
     position: 'absolute',
+    alignItems: 'center', justifyContent: 'center',
   },
-  pieLegendRow: { flexDirection: 'row', gap: 16 },
+  pieCenterValue: { fontSize: 16, fontWeight: '800', color: C.textPrimary },
+  pieCenterLabel: { fontSize: 7, fontWeight: '700', color: C.textMuted, letterSpacing: 0.4 },
+  pieLegendCol: { gap: 14, flex: 1 },
+  pieLegendItem: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  pieLegendLabel: { fontSize: 12, fontWeight: '700', color: C.textPrimary },
+  pieLegendValue: { fontSize: 11, color: C.textSecondary, marginTop: 1 },
 
 });

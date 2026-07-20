@@ -16,21 +16,25 @@ import { Colors } from '@/constants/theme';
 import { apiRequest } from '../../../lib/api';
 
 const C = {
-  navy: Colors.light.tint,
-  navyDark: '#0e1620',
+  navy: '#1E3A8A',
+  navyDark: '#152a63',
   white: Colors.light.background,
-  surface: '#F5F6F8',
-  border: '#D4D6D8',
+  surface: '#F4F6F9',
+  border: '#E4E7EC',
   textPrimary: Colors.light.text,
   textSecondary: '#6B7A8D',
-  textMuted: '#a0aac7',
+  textMuted: '#9AA5B8',
   amber: '#F59E0B',
-  amberLight: '#FFF4E5',
-  amberBorder: '#FDE68A',
+  amberLight: '#FEF3E2',
+  amberBorder: '#FCE3B6',
+  amberIconBg: '#FDECD1',
   green: '#10B981',
+  greenLight: '#DCFCE9',
   orange: '#F97316',
-  chartTeal: Colors.light.tint,
-  teal: '#13B4AA',
+  chartTeal: '#2F6FED',
+  teal: '#0EA5A0',
+  blue: '#2F6FED',
+  blueLight: '#E7EFFE',
 };
 
 const { width } = Dimensions.get('window');
@@ -62,9 +66,9 @@ function SparkLine({ points }: { points: number[] }) {
               left: x1,
               top: y1,
               width: len,
-              height: 2,
+              height: 3,
               backgroundColor: C.chartTeal,
-              borderRadius: 1,
+              borderRadius: 2,
               transform: [{ rotate: `${angle}deg` }],
               transformOrigin: '0 0',
             }}
@@ -92,8 +96,8 @@ function DonutChart({ percent }: { percent: number }) {
 const donut = StyleSheet.create({
   wrap: { alignItems: 'center', justifyContent: 'center' },
   ring: {
-    width: 80, height: 80, borderRadius: 40,
-    borderWidth: 8,
+    width: 84, height: 84, borderRadius: 42,
+    borderWidth: 9,
     borderColor: C.orange,
     borderTopColor: C.orange,
     borderRightColor: C.orange,
@@ -157,7 +161,7 @@ export default function OwnerDashboard() {
       <View style={styles.navbar}>
         <View style={styles.navLeft}>
           <View style={styles.navLogoMark}>
-            <Text style={styles.navLogoText}>P</Text>
+           <Ionicons name="car-sport" size={16} color={C.navy} />
           </View>
           <Text style={styles.navBrand}>ParkOptima</Text>
         </View>
@@ -169,7 +173,7 @@ export default function OwnerDashboard() {
 
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.parkingName}>ParkOptima Owner Console</Text>
+        <Text style={styles.parkingName}>OWNER CONSOLE</Text>
         <Text style={styles.greeting}>{loading ? 'Loading dashboard…' : `Good afternoon, ${dashboard?.owner_name || 'Owner'}`}</Text>
       </View>
 
@@ -180,7 +184,9 @@ export default function OwnerDashboard() {
 
         {/* Capacity Warning Banner */}
         <TouchableOpacity style={styles.warningBanner} activeOpacity={0.8}>
-          <Text style={styles.warningIcon}>⚠️</Text>
+          <View style={styles.warningIconWrap}>
+            <Text style={styles.warningIcon}>⚠️</Text>
+          </View>
           <View style={styles.warningText}>
             <Text style={styles.warningTitle}>Lot activity overview</Text>
             <Text style={styles.warningSubtitle}>{dashboard?.active_count ?? 0} active sessions · {dashboard?.collection_rate ?? 0}% collection rate</Text>
@@ -203,7 +209,7 @@ export default function OwnerDashboard() {
 
           <View style={styles.occupancyBody}>
             {loading ? (
-              <ActivityIndicator size="small" color={C.teal} />
+              <ActivityIndicator size="small" color={C.blue} />
             ) : (
               <>
                 <DonutChart percent={occupancyPercent} />
@@ -230,7 +236,7 @@ export default function OwnerDashboard() {
         <View style={styles.statCardsRow}>
           {/* Revenue */}
           <View style={styles.statCard}>
-            <View style={styles.statCardIconRow}>
+            <View style={[styles.statCardIconWrap, { backgroundColor: C.amberIconBg }]}>
               <Text style={styles.statCardIcon}>🏷️</Text>
             </View>
             <Text style={styles.statCardLabel}>Today's revenue</Text>
@@ -242,7 +248,7 @@ export default function OwnerDashboard() {
 
           {/* Active Vehicles */}
           <View style={styles.statCard}>
-            <View style={styles.statCardIconRow}>
+            <View style={[styles.statCardIconWrap, { backgroundColor: C.blueLight }]}>
               <Text style={styles.statCardIcon}>🚗</Text>
             </View>
             <Text style={styles.statCardLabel}>Active vehicles</Text>
@@ -327,14 +333,13 @@ const styles = StyleSheet.create({
   },
   navLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   navLogoMark: {
-    width: 28, height: 28, borderRadius: 6,
-    backgroundColor: C.teal,
+    width: 24, height: 24, borderRadius: 7,
+    backgroundColor: C.white,
     alignItems: 'center', justifyContent: 'center',
   },
-  navLogoText: { color: C.white, fontWeight: '800', fontSize: 14 },
   navBrand: { color: C.white, fontWeight: '700', fontSize: 16 },
   bellWrap: { position: 'relative', padding: 4 },
-  bellIcon: { fontSize: 20 },
+  bellIcon: { fontSize: 18 },
   bellDot: {
     position: 'absolute', top: 4, right: 4,
     width: 8, height: 8, borderRadius: 4,
@@ -345,48 +350,55 @@ const styles = StyleSheet.create({
   // Header
   header: {
     backgroundColor: C.navy,
-    paddingHorizontal: 16, paddingBottom: 14,
+    paddingHorizontal: 16, paddingBottom: 18,
   },
-  parkingName: { fontSize: 12, color: C.teal, fontWeight: '600', marginBottom: 2 },
-  greeting: { fontSize: 20, fontWeight: '800', color: C.white },
+  parkingName: { fontSize: 11, color: C.teal, fontWeight: '700', marginBottom: 4, letterSpacing: 0.8 },
+  greeting: { fontSize: 21, fontWeight: '800', color: C.white },
 
   scroll: { flex: 1, backgroundColor: C.surface },
-  scrollContent: { padding: 16 },
+  scrollContent: { padding: 16, paddingTop: 18 },
 
   // Warning Banner
   warningBanner: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: C.amberLight,
     borderWidth: 1, borderColor: C.amberBorder,
-    borderRadius: 10, padding: 12, marginBottom: 12, gap: 10,
+    borderRadius: 14, padding: 12, marginBottom: 14, gap: 10,
   },
-  warningIcon: { fontSize: 18 },
+  warningIconWrap: {
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: C.amberIconBg,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  warningIcon: { fontSize: 14 },
   warningText: { flex: 1 },
   warningTitle: { fontSize: 13, fontWeight: '700', color: '#92400E' },
-  warningSubtitle: { fontSize: 11, color: '#B45309', marginTop: 1 },
+  warningSubtitle: { fontSize: 11, color: '#B45309', marginTop: 2 },
   warningChevron: { fontSize: 20, color: '#B45309', fontWeight: '300' },
 
   // Occupancy Card
   occupancyCard: {
     backgroundColor: C.white,
-    borderRadius: 12, padding: 14,
-    marginBottom: 12,
+    borderRadius: 16, padding: 16,
+    marginBottom: 14,
     borderWidth: 1, borderColor: C.border,
+    shadowColor: '#0B1B2E', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 3 },
+    elevation: 1,
   },
   occupancyHeader: {
     flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: 14,
+    alignItems: 'center', marginBottom: 16,
   },
   occupancyTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   liveBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: '#D1FAE5', paddingHorizontal: 10, paddingVertical: 4,
+    backgroundColor: C.greenLight, paddingHorizontal: 10, paddingVertical: 4,
     borderRadius: 20,
   },
   liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.green },
-  liveText: { fontSize: 11, fontWeight: '700', color: C.teal },
+  liveText: { fontSize: 11, fontWeight: '700', color: C.green },
   occupancyBody: { flexDirection: 'row', alignItems: 'center', gap: 20 },
-  occupancyStats: { flex: 1, gap: 8 },
+  occupancyStats: { flex: 1, gap: 10 },
   statRow: { flexDirection: 'row', justifyContent: 'space-between' },
   statLabel: { fontSize: 12, color: C.textSecondary },
   statValue: { fontSize: 13, fontWeight: '700', color: C.textPrimary },
@@ -395,44 +407,55 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 14, fontWeight: '700', color: C.textPrimary },
 
   // Stat Cards
-  statCardsRow: { flexDirection: 'row', gap: 12, marginBottom: 12 },
+  statCardsRow: { flexDirection: 'row', gap: 12, marginBottom: 14 },
   statCard: {
     flex: 1, backgroundColor: C.white,
-    borderRadius: 12, padding: 14,
+    borderRadius: 16, padding: 14,
     borderWidth: 1, borderColor: C.border,
+    shadowColor: '#0B1B2E', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 3 },
+    elevation: 1,
   },
-  statCardIconRow: { marginBottom: 6 },
-  statCardIcon: { fontSize: 18 },
+  statCardIconWrap: {
+    width: 30, height: 30, borderRadius: 9,
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 8,
+  },
+  statCardIcon: { fontSize: 15 },
   statCardLabel: { fontSize: 11, color: C.textSecondary, marginBottom: 4 },
-  statCardValue: { fontSize: 22, fontWeight: '800', color: C.textPrimary, marginBottom: 4 },
+  statCardValue: { fontSize: 21, fontWeight: '800', color: C.textPrimary, marginBottom: 6 },
   statCardBadge: {
-    backgroundColor: '#D1FAE5', paddingHorizontal: 6, paddingVertical: 2,
+    backgroundColor: C.greenLight, paddingHorizontal: 6, paddingVertical: 2,
     borderRadius: 6, alignSelf: 'flex-start',
   },
-  statCardBadgeText: { fontSize: 10, color: C.teal, fontWeight: '700' },
+  statCardBadgeText: { fontSize: 10, color: C.green, fontWeight: '700' },
   statCardSub: { fontSize: 10, color: C.textMuted, lineHeight: 14 },
 
   // Analytics Card
   analyticsCard: {
     backgroundColor: C.white,
-    borderRadius: 12, padding: 14,
-    marginBottom: 12,
+    borderRadius: 16, padding: 16,
+    marginBottom: 14,
     borderWidth: 1, borderColor: C.border,
+    shadowColor: '#0B1B2E', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 3 },
+    elevation: 1,
   },
   analyticsHeader: {
     flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: 14,
+    alignItems: 'center', marginBottom: 16,
   },
   analyticsTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  chartTabs: { flexDirection: 'row', gap: 4 },
+  chartTabs: {
+    flexDirection: 'row', gap: 2,
+    backgroundColor: C.surface, borderRadius: 8, padding: 2,
+  },
   chartTab: {
-    paddingHorizontal: 10, paddingVertical: 4,
+    paddingHorizontal: 10, paddingVertical: 5,
     borderRadius: 6,
   },
-  chartTabActive: { backgroundColor: C.navy },
+  chartTabActive: { backgroundColor: C.blue },
   chartTabText: { fontSize: 11, color: C.textMuted, fontWeight: '600' },
   chartTabTextActive: { color: C.white },
-  chartArea: { marginBottom: 6 },
+  chartArea: { marginBottom: 8 },
   chartXLabels: {
     flexDirection: 'row', justifyContent: 'space-between',
     paddingHorizontal: 2,
@@ -442,14 +465,16 @@ const styles = StyleSheet.create({
   // Transactions
   transactionsCard: {
     backgroundColor: C.white,
-    borderRadius: 12, padding: 14,
+    borderRadius: 16, padding: 16,
     borderWidth: 1, borderColor: C.border,
+    shadowColor: '#0B1B2E', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 3 },
+    elevation: 1,
   },
   transactionsHeader: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', marginBottom: 12,
   },
-  viewAllText: { fontSize: 12, color: C.teal, fontWeight: '700' },
+  viewAllText: { fontSize: 12, color: C.blue, fontWeight: '700' },
   txRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10 },
   txRowBorder: { borderTopWidth: 1, borderTopColor: C.border },
   txPlate: { fontSize: 13, fontWeight: '700', color: C.textPrimary },

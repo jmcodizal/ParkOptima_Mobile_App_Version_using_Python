@@ -1,6 +1,6 @@
 from typing import Any, Dict, List
 
-from db import fetch_all
+from .db import fetch_all
 
 
 def get_owner_transactions() -> List[Dict[str, Any]]:

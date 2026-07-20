@@ -5,24 +5,47 @@ from typing import Any, Dict, List, Optional
 
 import mysql.connector
 from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from db import execute, fetch_all, fetch_one, get_db_connection, hash_password, verify_password
-from services import build_owner_analytics, build_owner_dashboard, build_owner_reports
-from overview import get_owner_overview
-from profile import get_owner_profile, update_owner_profile
-from analytics import get_owner_analytics
-from transaction_log import get_owner_transactions
-from monitor import get_monitor_summary, get_active_sessions, get_recent_transactions, get_monitor_slots
-from payments import get_payments, mark_payment_paid
-from scan import create_parking_session
-from scan_out import complete_parking_session
-from attendant_login import authenticate_attendant
-from attendant_signup import register_attendant
-from parking_owner_login import authenticate_parking_owner
-from parking_owner_signup import register_parking_owner
-from check_balance import get_vehicle_balance
+try:
+    from .vision_utils import extract_plate_candidate
+except ImportError:
+    from vision_utils import extract_plate_candidate
+
+try:
+    from .db import execute, fetch_all, fetch_one, get_db_connection, hash_password, verify_password
+    from .services import build_owner_analytics, build_owner_dashboard, build_owner_reports
+    from .overview import get_owner_overview
+    from .profile import get_owner_profile, update_owner_profile, update_user_profile
+    from .analytics import get_owner_analytics
+    from .transaction_log import get_owner_transactions
+    from .monitor import get_monitor_summary, get_active_sessions, get_recent_transactions, get_monitor_slots
+    from .payments import get_payments, mark_payment_paid
+    from .scan import create_parking_session
+    from .scan_out import complete_parking_session
+    from .attendant_login import authenticate_attendant
+    from .attendant_signup import register_attendant
+    from .parking_owner_login import authenticate_parking_owner
+    from .parking_owner_signup import register_parking_owner
+    from .check_balance import get_vehicle_balance
+except ImportError:
+    from db import execute, fetch_all, fetch_one, get_db_connection, hash_password, verify_password
+    from services import build_owner_analytics, build_owner_dashboard, build_owner_reports
+    from overview import get_owner_overview
+    from profile import get_owner_profile, update_owner_profile, update_user_profile
+    from analytics import get_owner_analytics
+    from transaction_log import get_owner_transactions
+    from monitor import get_monitor_summary, get_active_sessions, get_recent_transactions, get_monitor_slots
+    from payments import get_payments, mark_payment_paid
+    from scan import create_parking_session
+    from scan_out import complete_parking_session
+    from attendant_login import authenticate_attendant
+    from attendant_signup import register_attendant
+    from parking_owner_login import authenticate_parking_owner
+    from parking_owner_signup import register_parking_owner
+    from check_balance import get_vehicle_balance
 
 try:
     import cv2  # type: ignore
@@ -50,6 +73,14 @@ app.add_middleware(
 )
 
 
+@app.exception_handler(mysql.connector.Error)
+async def mysql_exception_handler(request: Request, exc: mysql.connector.Error) -> JSONResponse:
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "Database unavailable. Start MySQL and verify connection settings."},
+    )
+
+
 async def parse_json_body(request: Request) -> Dict[str, Any]:
     try:
         return await request.json()
@@ -60,6 +91,12 @@ async def parse_json_body(request: Request) -> Dict[str, Any]:
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+
+class PasswordResetRequest(BaseModel):
+    identifier: str
+    current_password: str
+    new_password: str
 
 
 class SignupRequest(BaseModel):
@@ -91,11 +128,7 @@ class OwnerProfileUpdateRequest(BaseModel):
     motor_fee: Optional[float] = None
     four_wheeler_fee: Optional[float] = None
     new_password: Optional[str] = None
-
-
-@app.options("/{path:path}")
-async def options_route(path: str) -> None:
-    return None
+    current_password: Optional[str] = None
 
 
 @app.get("/api/ping")
@@ -105,13 +138,13 @@ async def ping() -> Dict[str, Any]:
 
 @app.post("/api/auth/login")
 async def login(payload: LoginRequest) -> Dict[str, Any]:
-    email = payload.email.strip()
-    password = payload.password
+    email = (payload.email or "").strip().lower()
+    password = payload.password or ""
     if not email or not password:
         raise HTTPException(status_code=400, detail="Email and password are required")
 
     row = fetch_one(
-        "SELECT id, role, password_hash, password_salt FROM users WHERE email = %s AND is_active = 1 LIMIT 1",
+        "SELECT id, role, password_hash, password_salt FROM users WHERE LOWER(email) = %s AND is_active = 1 LIMIT 1",
         [email],
     )
     if not row or not verify_password(password, row.get("password_hash"), row.get("password_salt")):
@@ -150,6 +183,7 @@ async def signup(payload: SignupRequest) -> Dict[str, Any]:
     if role not in {"parking_attendant", "parking_owner", "vehicle_owner"}:
         raise HTTPException(status_code=400, detail="Invalid role")
 
+    payload.email = (payload.email or "").strip().lower()
     if not payload.email or not payload.password:
         raise HTTPException(status_code=400, detail="Email, password, and role are required")
 
@@ -160,7 +194,7 @@ async def signup(payload: SignupRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail="PIN must be exactly 4 digits")
 
     # Basic duplicate checks
-    existing_user = fetch_one("SELECT id FROM users WHERE email = %s LIMIT 1", [payload.email])
+    existing_user = fetch_one("SELECT id FROM users WHERE LOWER(email) = %s LIMIT 1", [payload.email])
     if existing_user:
         raise HTTPException(status_code=409, detail="Email is already registered")
 
@@ -214,6 +248,45 @@ async def signup(payload: SignupRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Database error: {exc}") from exc
     finally:
         connection.close()
+
+
+def reset_user_password(identifier: str, current_password: str, new_password: str) -> Dict[str, Any]:
+    normalized_identifier = (identifier or "").strip().lower()
+    if not normalized_identifier or not current_password or not new_password:
+        raise HTTPException(status_code=400, detail="Identifier, current password, and new password are required")
+    if len(str(new_password)) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+
+    row = fetch_one(
+        "SELECT id, password_hash, password_salt FROM users WHERE (LOWER(email) = %s OR phone = %s) AND is_active = 1 LIMIT 1",
+        [normalized_identifier, normalized_identifier],
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not verify_password(str(current_password), row.get("password_hash"), row.get("password_salt")):
+        raise HTTPException(status_code=401, detail="Current password is invalid")
+
+    connection = get_db_connection()
+    try:
+        cursor = connection.cursor()
+        salt = ""
+        password_hash = hash_password(str(new_password), salt)
+        cursor.execute(
+            "UPDATE users SET password_hash = %s, password_salt = %s WHERE id = %s",
+            [password_hash, salt, int(row["id"])],
+        )
+        connection.commit()
+        return {"message": "Password updated"}
+    except mysql.connector.Error as exc:
+        connection.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {exc}") from exc
+    finally:
+        connection.close()
+
+
+@app.post("/api/auth/password-reset")
+async def password_reset(payload: PasswordResetRequest) -> Dict[str, Any]:
+    return reset_user_password(payload.identifier, payload.current_password, payload.new_password)
 
 
 @app.post("/api/auth/vehicle-login")
@@ -315,6 +388,11 @@ async def user_profile(user_id: int) -> Dict[str, Any]:
     if not row:
         raise HTTPException(status_code=404, detail="User not found")
     return row
+
+
+@app.put("/api/users/{user_id}")
+async def user_profile_update(user_id: int, payload: OwnerProfileUpdateRequest) -> Dict[str, Any]:
+    return update_user_profile(user_id, payload.dict())
 
 
 @app.get("/api/owner/dashboard")
@@ -472,11 +550,13 @@ async def vision_detect(file: UploadFile = File(...)) -> Dict[str, Any]:
     # OCR
     reader = easyocr.Reader(["en"], gpu=False)
     text_results = reader.readtext(temp_path, detail=0, paragraph=False)
+    normalized_plate = extract_plate_candidate(text_results)
 
     return {
         "status": "ok",
         "objects": detected_objects,
         "text": text_results,
+        "plate": normalized_plate,
     }
 
 

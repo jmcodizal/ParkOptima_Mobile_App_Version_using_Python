@@ -1,3 +1,9 @@
 {
-  "python.defaultInterpreterPath": "${workspaceFolder}\\.venv\\Scripts\\python.exe"
+  "python.defaultInterpreterPath": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+  "typescript.tsdk": "frontend/node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "typescript.tsserver.experimental.enableProjectDiagnostics": true,
+  "files.associations": {
+    "*.tsx": "typescriptreact"
+  }
 }

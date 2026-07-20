@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -9,12 +9,36 @@ import {
   KeyboardAvoidingView,
   Platform,
   Switch,
+  Alert,
+  Image,
 } from 'react-native';
- 
+import { CameraView, Camera } from 'expo-camera';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import TopBar from '@/components/ui/top-bar';
+import { apiRequest, getApiBaseUrl } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
+
+// ML Kit OCR import with fallback
+let MLKit: any = null;
+try {
+  MLKit = require('react-native-mlkit-ocr').default;
+} catch {
+  console.warn('react-native-mlkit-ocr not available – OCR will be simulated');
+}
+
+// Helper: Extract plate number from OCR text
+const extractPlateFromText = (text: string): string | null => {
+  const cleaned = text.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const anyMatch = cleaned.match(/([A-Z0-9]{3,})/);
+  return anyMatch ? anyMatch[1] : null;
+};
+
+// Helper: Format plate number
+const formatPlateNumber = (text: string): string => {
+  return text.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 20);
+};
 
 const COLORS = {
   navy: '#1D3D8A',
@@ -46,6 +70,158 @@ export default function ScanEntryScreen() {
   const [plateNumber, setPlateNumber] = useState('');
   const [brandModel, setBrandModel] = useState('');
   const [vehicleColor, setVehicleColor] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [isCameraVisible, setIsCameraVisible] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
+  const [permissionStatus, setPermissionStatus] = useState<string | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [ocrResult, setOcrResult] = useState('');
+  const cameraRef = useRef<any>(null);
+  const { userId } = useAuth();
+
+  const handleSubmitEntry = async () => {
+    if (!plateNumber.trim()) {
+      Alert.alert('Validation error', 'Please enter a plate number.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await apiRequest<any>('/api/scan', {
+        method: 'POST',
+        body: JSON.stringify({
+          plate: plateNumber.trim(),
+          attendant_id: userId,
+          vehicle_type: selectedVehicle === 'Motor' ? '2wheels' : '4wheels',
+          brand: brandModel,
+          color: vehicleColor,
+        }),
+      });
+      setMessage(response.message || 'Parking session started');
+      setPlateNumber('');
+      setBrandModel('');
+      setVehicleColor('');
+    } catch (error) {
+      Alert.alert('Entry failed', error instanceof Error ? error.message : 'Unable to start parking session.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const checkPermission = async () => {
+      const permission = await Camera.getCameraPermissionsAsync();
+      setPermissionStatus(permission.status);
+      if (permission.status !== 'granted') {
+        setIsCameraVisible(false);
+      }
+      setCameraReady(false);
+    };
+
+    checkPermission();
+  }, []);
+
+  const handleOpenCamera = async () => {
+    const permission = await Camera.getCameraPermissionsAsync();
+    if (permission.status !== 'granted') {
+      const result = await Camera.requestCameraPermissionsAsync();
+      setPermissionStatus(result.status);
+      if (result.status !== 'granted') {
+        Alert.alert('Permission required', 'Camera access is required to scan a license plate.');
+        return;
+      }
+    }
+
+    setIsCameraVisible(true);
+    setCameraReady(false);
+    setMessage('Live camera ready. Tap capture to scan.');
+  };
+
+  const handleCaptureAndRecognize = async () => {
+    if (!cameraRef.current) {
+      Alert.alert('Error', 'Camera not ready. Please try again.');
+      return;
+    }
+
+    setIsScanning(true);
+    setLoading(true);
+    try {
+      // Take a picture
+      const photo = await cameraRef.current.takePictureAsync({
+        base64: false,
+        quality: 0.8,
+      });
+
+      if (!photo?.uri) {
+        Alert.alert('Error', 'Failed to capture image.');
+        return;
+      }
+
+      setCapturedImage(photo.uri);
+
+      if (MLKit) {
+        // Run OCR on the captured image using Google ML Kit
+        const blocks = await MLKit.detectFromUri(photo.uri);
+
+        // Combine all recognized text from blocks
+        const recognizedText = blocks.map((b: any) => b.text).join(' ').trim();
+        setOcrResult(recognizedText || '(no text detected)');
+        setMessage(`OCR Result: ${recognizedText}`);
+
+        // Try to extract plate number from OCR text
+        const plate = extractPlateFromText(recognizedText);
+        if (plate) {
+          setPlateNumber(plate);
+          setMessage(`Recognized plate: ${plate}`);
+        } else if (recognizedText) {
+          const formatted = formatPlateNumber(recognizedText.replace(/\s/g, ''));
+          setPlateNumber(formatted);
+          setMessage(`Formatted plate: ${formatted}`);
+        } else {
+          setMessage('No text detected. Please try again or enter manually.');
+        }
+      } else {
+        // ML Kit not available – show the image and let user type plate manually
+        setOcrResult('(ML Kit not available in Expo Go – using backend fallback)');
+        setMessage('Falling back to backend vision API...');
+        
+        // Try backend fallback
+        try {
+          const formData = new FormData();
+          formData.append('file', {
+            uri: photo.uri,
+            name: 'plate.jpg',
+            type: 'image/jpeg',
+          } as any);
+
+          const apiBase = getApiBaseUrl();
+          const response = await fetch(`${apiBase}/api/vision/detect`, {
+            method: 'POST',
+            body: formData,
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
+
+          const data = await response.json();
+          if (data?.plate) {
+            setPlateNumber(data.plate);
+            setMessage(`Recognized plate: ${data.plate}`);
+          } else {
+            setMessage('No plate detected. Please enter manually.');
+          }
+        } catch (error) {
+          setMessage('Backend not available. Please enter plate manually.');
+        }
+      }
+    } catch (error: any) {
+      console.warn('OCR Error:', error);
+      Alert.alert('Scan Error', 'Failed to recognize plate. Please try again or enter manually.');
+    } finally {
+      setIsScanning(false);
+      setLoading(false);
+    }
+  };
 
   return (
     <ThemedView style={styles.container}>
@@ -72,6 +248,11 @@ export default function ScanEntryScreen() {
               </ThemedText>
             </View>
           </View>
+          {message ? (
+            <View style={styles.feedbackBanner}>
+              <Text style={styles.feedbackText}>{message}</Text>
+            </View>
+          ) : null}
 
           <View style={styles.tabRow}>
             {(['Camera Scan', 'Manual Entry'] as TabMode[]).map(tab => (
@@ -128,11 +309,33 @@ export default function ScanEntryScreen() {
           {activeTab === 'Camera Scan' ? (
             <>
               <View style={styles.viewfinder}>
-                <View style={styles.cornerTL} />
-                <View style={styles.cornerTR} />
-                <View style={styles.cornerBL} />
-                <View style={styles.cornerBR} />
-                <Text style={styles.cameraReadyText}>CAMERA READY</Text>
+                {isCameraVisible && permissionStatus === 'granted' ? (
+                  <>
+                    <CameraView
+                      ref={cameraRef}
+                      style={StyleSheet.absoluteFill}
+                      facing="back"
+                      onCameraReady={() => setCameraReady(true)}
+                    />
+                    <View style={styles.scannerOverlay}>
+                      <View style={styles.cornerTL} />
+                      <View style={styles.cornerTR} />
+                      <View style={styles.cornerBL} />
+                      <View style={styles.cornerBR} />
+                      <Text style={styles.cameraReadyText}>{cameraReady ? 'SCANNING LIVE' : 'STARTING CAMERA...'}</Text>
+                    </View>
+                  </>
+                ) : capturedImage ? (
+                  <Image source={{ uri: capturedImage }} style={styles.previewImage} />
+                ) : (
+                  <>
+                    <View style={styles.cornerTL} />
+                    <View style={styles.cornerTR} />
+                    <View style={styles.cornerBL} />
+                    <View style={styles.cornerBR} />
+                    <Text style={styles.cameraReadyText}>CAMERA READY</Text>
+                  </>
+                )}
               </View>
 
               <View style={styles.alignRow}>
@@ -146,13 +349,58 @@ export default function ScanEntryScreen() {
                 <Text style={styles.alignLabel}>Align license plate within the frame</Text>
               </View>
 
-              <TouchableOpacity style={styles.activateBtn} activeOpacity={0.85}>
+              <TouchableOpacity
+                style={[styles.activateBtn, loading && styles.btnDisabled]}
+                activeOpacity={0.85}
+                onPress={isCameraVisible ? handleCaptureAndRecognize : handleOpenCamera}
+                disabled={loading}
+              >
                 <Text style={styles.activateBtnIcon}>📷</Text>
-                <Text style={styles.activateBtnText}>Activate Camera</Text>
+                <Text style={styles.activateBtnText}>{loading ? 'Recognizing...' : isCameraVisible ? 'Capture & Scan' : 'Activate Camera'}</Text>
               </TouchableOpacity>
+
+              <View style={styles.manualCard}>
+                <Text style={styles.fieldLabel}>PLATE NUMBER</Text>
+                <View style={styles.inputRow}>
+                  <TextInput
+                    style={styles.input}
+                    value={plateNumber}
+                    onChangeText={setPlateNumber}
+                    placeholder="Recognized plate will appear here"
+                    placeholderTextColor={COLORS.textMuted}
+                    autoCapitalize="characters"
+                  />
+                </View>
+                <TouchableOpacity
+                  style={[styles.submitBtn, loading && styles.btnDisabled]}
+                  activeOpacity={0.85}
+                  onPress={handleSubmitEntry}
+                  disabled={loading || !plateNumber.trim()}
+                >
+                  <Text style={styles.submitText}>{loading ? 'Saving...' : 'Record Entry'}</Text>
+                </TouchableOpacity>
+              </View>
             </>
-          ) : (
+            ) : (
             <View style={styles.manualCard}>
+              <Text style={styles.fieldLabel}>PLATE NUMBER</Text>
+              <View style={styles.inputRow}>
+                <View style={styles.inputIconWrap}>
+                  <View style={styles.idIcon}>
+                    <View style={styles.idStripe} />
+                    <View style={styles.idDot} />
+                  </View>
+                </View>
+                <TextInput
+                  style={styles.input}
+                  value={plateNumber}
+                  onChangeText={setPlateNumber}
+                  placeholder="Enter plate number"
+                  placeholderTextColor={COLORS.textMuted}
+                  autoCapitalize="characters"
+                />
+              </View>
+
               <Text style={styles.fieldLabel}>VEHICLE DETAILS</Text>
               <View style={styles.inputRow}>
                 <View style={styles.inputIconWrap}>
@@ -188,8 +436,13 @@ export default function ScanEntryScreen() {
                 />
               </View>
 
-              <TouchableOpacity style={styles.submitBtn} activeOpacity={0.85}>
-                <Text style={styles.submitText}>Submit</Text>
+              <TouchableOpacity
+                style={[styles.submitBtn, loading && styles.btnDisabled]}
+                activeOpacity={0.85}
+                onPress={handleSubmitEntry}
+                disabled={loading}
+              >
+                <Text style={styles.submitText}>{loading ? 'Saving...' : 'Submit'}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -238,6 +491,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.textSecondary,
     marginTop: 2,
+  },
+  feedbackBanner: {
+    marginBottom: 14,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#E8F8EE',
+  },
+  feedbackText: {
+    color: '#0F766E',
+    fontWeight: '600',
+  },
+  btnDisabled: {
+    opacity: 0.6,
   },
   tabRow: {
     flexDirection: 'row',
@@ -360,6 +626,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+  },
+  scannerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+  },
+  previewImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
   },
   cornerTL: {
     position: 'absolute',

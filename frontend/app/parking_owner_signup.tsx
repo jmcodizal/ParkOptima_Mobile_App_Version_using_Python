@@ -24,9 +24,10 @@ const C = {
   navyDark: '#152a63',
   teal: '#14B8A6',
   red: '#DC2626',
+  subtitle: '#B91C1C',
   amber: '#F59E0B',
   bg: '#FFFFFF',
-  inputBg: '#F3F4F6',
+  inputBg: '#F9FAFB',
   inputBorder: '#E5E7EB',
   textPrimary: '#1F2937',
   textMuted: '#6B7280',
@@ -92,34 +93,36 @@ export default function ParkingOwnerSignupScreen() {
 
       {/* Header */}
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <View style={styles.logoBox}>
-            <Ionicons name="car-sport" size={16} color={C.navy} />
+        <TouchableOpacity style={styles.backIconBtn} onPress={() => router.push('/get_started')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Ionicons name="chevron-back" size={18} color="#fff" />
+            </TouchableOpacity>
+            <View style={styles.headerLeft}>
+              <View style={styles.logoBox}>
+                <Ionicons name="car-sport" size={16} color={C.navy} />
+              </View>
+             <Text style={styles.headerTitle}>ParkOptima</Text>
+            </View>
+            <View style={styles.roleBadge}>
+              <Text style={styles.roleBadgeText}>Parking Owner</Text>
           </View>
-          <Text style={styles.headerTitle}>ParkOptima</Text>
         </View>
-      </View>
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
       >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          bounces={false}
         >
           <View style={styles.pageContent}>
             <LoginFormContainer>
-              {/* Role badge */}
-              <View style={styles.roleBadge}>
-                <Ionicons name="home" size={11} color={C.amber} />
-                <Text style={styles.roleBadgeText}>PARKING OWNER</Text>
-              </View>
-
               {/* Icon + heading */}
               <View style={styles.iconCircle}>
-                <Ionicons name="home" size={26} color="#fff" />
+                <Ionicons name="home" size={24} color="#fff" />
               </View>
               <Text style={styles.title}>Create account</Text>
               <Text style={styles.subtitle}>
@@ -159,7 +162,9 @@ export default function ParkingOwnerSignupScreen() {
               {/* Email */}
               <Text style={styles.label}>EMAIL</Text>
               <View style={styles.inputWrapper}>
-                <Ionicons name="mail-outline" size={16} color={C.teal} />
+                <View style={styles.inputIconCircle}>
+                  <Ionicons name="mail" size={13} color="#fff" />
+                </View>
                 <TextInput
                   style={styles.input}
                   placeholder="Email address"
@@ -175,7 +180,9 @@ export default function ParkingOwnerSignupScreen() {
               {/* Phone */}
               <Text style={styles.label}>PHONE</Text>
               <View style={styles.inputWrapper}>
-                <Ionicons name="call-outline" size={16} color={C.teal} />
+                <View style={styles.inputIconCircle}>
+                  <Ionicons name="call" size={13} color="#fff" />
+                </View>
                 <TextInput
                   style={styles.input}
                   placeholder="Phone number"
@@ -190,7 +197,9 @@ export default function ParkingOwnerSignupScreen() {
               {/* Password */}
               <Text style={styles.label}>PASSWORD</Text>
               <View style={styles.inputWrapper}>
-                <Ionicons name="lock-closed-outline" size={16} color={C.teal} />
+                <View style={styles.inputIconCircle}>
+                  <Ionicons name="lock-closed" size={13} color="#fff" />
+                </View>
                 <TextInput
                   style={styles.input}
                   placeholder="Password"
@@ -215,8 +224,8 @@ export default function ParkingOwnerSignupScreen() {
                   <ActivityIndicator color="#fff" />
                 ) : (
                   <>
-                    <Ionicons name="person-add-outline" size={16} color="#fff" />
-                    <Text style={styles.signUpText}>Sign up</Text>
+                    <Ionicons name="person-add-outline" size={16} color="#fff" style={{ marginRight: 8 }} />
+                    <Text style={styles.signUpText}>Sign Up</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -250,9 +259,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  backIconBtn: {
+    position: 'absolute',
+    left: 12,
+    top: 14,
+    zIndex: 2,
+    padding: 4,
+  },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginLeft: 22,
   },
   logoBox: {
     width: 24,
@@ -270,62 +287,66 @@ const styles = StyleSheet.create({
   },
   pageContent: {
     flex: 1,
-    minHeight: '100%',
     width: '100%',
     maxWidth: 440,
     alignSelf: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 32,
+    paddingVertical: 14,
   },
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 24,
-    paddingBottom: 40,
+    paddingVertical: 10,
+    paddingBottom: 20,
   },
   roleBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'center',
-    backgroundColor: 'rgba(245,158,11,0.12)',
+    backgroundColor: '#FFFBEB',
     borderWidth: 1,
     borderColor: C.amber,
     borderRadius: 20,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    gap: 5,
-    marginBottom: 16,
+    gap: 4,
   },
   roleBadgeText: {
-    color: C.amber,
-    fontSize: 9,
+    color: C.teal,
+    fontSize: 10,
     fontWeight: '700',
-    letterSpacing: 0.5,
   },
   iconCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: C.navy,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginTop: 2,
+    marginBottom: 8,
+    shadowColor: C.navy,
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
   },
   title: {
     color: C.navy,
-    fontSize: 19,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '800',
+    textAlign: 'center',
   },
   subtitle: {
-    color: C.textMuted,
+    color: C.subtitle,
     fontSize: 11,
+    fontWeight: '600',
     textAlign: 'center',
-    marginTop: 4,
-    marginBottom: 20,
+    marginTop: 3,
+    marginBottom: 14,
     paddingHorizontal: 10,
   },
   row: {
@@ -338,11 +359,11 @@ const styles = StyleSheet.create({
   },
   label: {
     alignSelf: 'flex-start',
-    color: C.teal,
+    color: C.navy,
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.5,
-    marginBottom: 6,
+    marginBottom: 5,
   },
   inputWrapper: {
     width: '100%',
@@ -351,11 +372,19 @@ const styles = StyleSheet.create({
     backgroundColor: C.inputBg,
     borderWidth: 1,
     borderColor: C.inputBorder,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    marginBottom: 14,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    marginBottom: 10,
     gap: 8,
+  },
+  inputIconCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: C.navy,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   input: {
     flex: 1,
@@ -369,11 +398,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 10,
-    gap: 8,
-    marginTop: 6,
-    marginBottom: 14,
+    paddingVertical: 13,
+    borderRadius: 12,
+    marginTop: 4,
+    marginBottom: 10,
+    shadowColor: C.navy,
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
   signUpBtnDisabled: {
     opacity: 0.6,
@@ -387,7 +420,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 6,
+    marginTop: 2,
   },
   loginMuted: {
     color: C.textMuted,

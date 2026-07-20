@@ -16,21 +16,24 @@ import { Colors } from '@/constants/theme';
 import { apiRequest } from '../../../lib/api';
 
 const C = {
-  navy: Colors.light.tint,
-  teal: '#13B4AA',
+  navy: '#1E3A8A',
+  navyDark: '#08131F',
+  teal: '#0EA5A0',
   white: Colors.light.background,
-  surface: '#F5F6F8',
-  border: '#D4D6D8',
+  surface: '#F4F6F9',
+  border: '#E4E7EC',
   textPrimary: Colors.light.text,
   textSecondary: '#6B7A8D',
-  textMuted: '#a0aac7',
+  textMuted: '#9AA5B8',
   amber: '#F59E0B',
   paidBg: '#D1FAE5',
   paidText: '#065F46',
-  unpaidBg: '#FEF3C7',
-  unpaidText: '#B45309',
+  unpaidBg: '#FEE2E2',
+  unpaidText: '#B91C1C',
   blue: '#3B82F6',
+  blueLight: '#E7EFFE',
   orange: '#F97316',
+  tealLight: '#DBF5F2',
 };
 
 type FilterTab = 'All' | 'Paid' | 'Unpaid' | 'Today';
@@ -51,55 +54,22 @@ type Transaction = {
 function VehicleIcon({ type }: { type: VehicleType }) {
   if (type === '4wheels') {
     return (
-      <View style={[iconStyles.wrap, { backgroundColor: '#EFF6FF' }]}>
-        <View style={iconStyles.carRoof} />
-        <View style={iconStyles.carBody} />
-        <View style={iconStyles.carWheels}>
-          <View style={[iconStyles.carWheel, { borderColor: C.blue }]} />
-          <View style={[iconStyles.carWheel, { borderColor: C.blue }]} />
-        </View>
+      <View style={[iconStyles.wrap, { backgroundColor: C.blueLight }]}>
+        <Ionicons name="car-sport" size={18} color={C.blue} />
       </View>
     );
   }
   return (
-    <View style={[iconStyles.wrap, { backgroundColor: '#FFF7ED' }]}>
-      <View style={iconStyles.motoBody} />
-      <View style={iconStyles.motoWheels}>
-        <View style={[iconStyles.motoWheel, { borderColor: C.orange }]} />
-        <View style={[iconStyles.motoWheel, { borderColor: C.orange }]} />
-      </View>
+    <View style={[iconStyles.wrap, { backgroundColor: C.tealLight }]}>
+      <Ionicons name="bicycle" size={18} color={C.teal} />
     </View>
   );
 }
 
 const iconStyles = StyleSheet.create({
   wrap: {
-    width: 40, height: 40, borderRadius: 10,
+    width: 40, height: 40, borderRadius: 12,
     alignItems: 'center', justifyContent: 'center',
-  },
-  carRoof: {
-    width: 14, height: 7,
-    backgroundColor: C.blue,
-    borderTopLeftRadius: 5, borderTopRightRadius: 5,
-  },
-  carBody: {
-    width: 22, height: 8,
-    backgroundColor: C.blue, borderRadius: 2,
-  },
-  carWheels: { flexDirection: 'row', gap: 8, marginTop: 1 },
-  carWheel: {
-    width: 7, height: 7, borderRadius: 4,
-    borderWidth: 2, backgroundColor: C.white,
-  },
-  motoBody: {
-    width: 20, height: 8,
-    backgroundColor: C.orange, borderRadius: 3,
-    marginBottom: 2,
-  },
-  motoWheels: { flexDirection: 'row', gap: 6 },
-  motoWheel: {
-    width: 7, height: 7, borderRadius: 4,
-    borderWidth: 2, backgroundColor: C.white,
   },
 });
 
@@ -162,13 +132,24 @@ export default function TransactionHistory() {
   const todayTxs = filtered.filter(tx => tx.date === 'today');
   const yesterdayTxs = filtered.filter(tx => tx.date === 'yesterday');
 
-  const TxCard = ({ tx }: { tx: Transaction }) => (
-    <View style={styles.txCard}>
+  const paidCount = transactions.filter(tx => tx.status === 'Paid').length;
+  const unpaidCount = transactions.filter(tx => tx.status === 'Unpaid').length;
+  const todayCount = transactions.filter(tx => tx.date === 'today').length;
+
+  const filterCounts: Record<FilterTab, number> = {
+    All: transactions.length,
+    Paid: paidCount,
+    Unpaid: unpaidCount,
+    Today: todayCount,
+  };
+
+  const TxCard = ({ tx, isLast }: { tx: Transaction; isLast: boolean }) => (
+    <View style={[styles.txCard, isLast && { borderBottomWidth: 0 }]}>
       <VehicleIcon type={tx.vehicleType} />
       <View style={styles.txInfo}>
         <Text style={styles.txPlate}>{tx.plate}</Text>
         <Text style={styles.txDetail}>
-          {tx.wheels} · {tx.entry} · {tx.exit}
+          Entered {tx.entry.replace('In ', '')} · {tx.wheels}
         </Text>
       </View>
       <View style={styles.txRight}>
@@ -188,14 +169,23 @@ export default function TransactionHistory() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" backgroundColor={C.navy} />
 
-      {/* Navbar */}
+      {/* Navbar — same pattern as Overview */}
       <View style={styles.navbar}>
-        <View style={styles.navLeft}>
-          <View style={styles.navLogoMark}>
-            <Text style={styles.navLogoText}>P</Text>
-          </View>
-          <Text style={styles.navTitle}>Transaction History</Text>
-        </View>
+              <View style={styles.navLeft}>
+                <View style={styles.navLogoMark}>
+                 <Ionicons name="car-sport" size={16} color={C.navy} />
+                </View>
+                <Text style={styles.navBrand}>ParkOptima</Text>
+              </View>
+              <TouchableOpacity style={styles.bellWrap}>
+                <Text style={styles.bellIcon}>🔔</Text>
+                <View style={styles.bellDot} />
+              </TouchableOpacity>
+     </View>
+
+      {/* Header — same style as Overview */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Transaction history</Text>
       </View>
 
       <ScrollView
@@ -206,7 +196,7 @@ export default function TransactionHistory() {
         {/* Search */}
         <View style={styles.searchRow}>
           <View style={styles.searchWrap}>
-            <Text style={styles.searchIcon}>🔍</Text>
+            <Ionicons name="search" size={16} color={C.textMuted} style={{ marginRight: 6 }} />
             <TextInput
               style={styles.searchInput}
               value={search}
@@ -216,7 +206,7 @@ export default function TransactionHistory() {
             />
           </View>
           <TouchableOpacity style={styles.filterBtn}>
-            <Text style={styles.filterIcon}>⇅</Text>
+            <Ionicons name="swap-vertical" size={16} color={C.textSecondary} />
           </TouchableOpacity>
         </View>
 
@@ -229,7 +219,7 @@ export default function TransactionHistory() {
               onPress={() => setActiveFilter(tab)}
               activeOpacity={0.8}>
               <Text style={[styles.filterTabText, activeFilter === tab && styles.filterTabTextActive]}>
-                {tab}
+                {tab} {filterCounts[tab]}
               </Text>
             </TouchableOpacity>
           ))}
@@ -243,15 +233,19 @@ export default function TransactionHistory() {
           <>
             {todayTxs.length > 0 && (
               <>
-                <Text style={styles.sectionLabel}>TODAY</Text>
-                {todayTxs.map(tx => <TxCard key={tx.id} tx={tx} />)}
+                <Text style={styles.sectionLabel}>TODAY · {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase()}</Text>
+                <View style={styles.txGroup}>
+                  {todayTxs.map((tx, i) => <TxCard key={tx.id} tx={tx} isLast={i === todayTxs.length - 1} />)}
+                </View>
               </>
             )}
 
             {yesterdayTxs.length > 0 && (
               <>
-                <Text style={styles.sectionLabel}>PREVIOUS</Text>
-                {yesterdayTxs.map(tx => <TxCard key={tx.id} tx={tx} />)}
+                <Text style={styles.sectionLabel}>YESTERDAY</Text>
+                <View style={styles.txGroup}>
+                  {yesterdayTxs.map((tx, i) => <TxCard key={tx.id} tx={tx} isLast={i === yesterdayTxs.length - 1} />)}
+                </View>
               </>
             )}
           </>
@@ -266,65 +260,95 @@ export default function TransactionHistory() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: C.navy },
 
+  // Navbar — matches Overview
   navbar: {
     flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between',
     backgroundColor: C.navy,
-    paddingHorizontal: 16, paddingVertical: 12,
+    paddingHorizontal: 16, paddingVertical: 10,
   },
   navLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   navLogoMark: {
-    width: 28, height: 28, borderRadius: 6,
-    backgroundColor: C.teal,
+    width: 28, height: 28, borderRadius: 8,
+    backgroundColor: C.white,
     alignItems: 'center', justifyContent: 'center',
   },
-  navLogoText: { color: C.white, fontWeight: '800', fontSize: 14 },
-  navTitle: { color: C.white, fontWeight: '700', fontSize: 18 },
+  navLogoText: { color: C.navy, fontWeight: '800', fontSize: 13 },
+  navLotLabel: { color: C.teal, fontSize: 10, fontWeight: '700', marginBottom: 1 },
+  navBrand: { color: C.white, fontWeight: '700', fontSize: 15 },
+  bellWrap: { position: 'relative', padding: 4 },
+  bellIcon: { fontSize: 18 },
+  bellDot: {
+    position: 'absolute', top: 4, right: 4,
+    width: 8, height: 8, borderRadius: 4,
+    backgroundColor: C.amber,
+    borderWidth: 1.5, borderColor: C.navy,
+  },
+  addBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center', justifyContent: 'center',
+  },
 
-  scroll: { flex: 1, backgroundColor: C.white },
-  scrollContent: { padding: 16 },
+  // Header — matches Overview
+  header: {
+    backgroundColor: C.navy,
+    paddingHorizontal: 16, paddingBottom: 18,
+  },
+  headerTitle: { fontSize: 21, fontWeight: '800', color: C.white },
+
+  scroll: { flex: 1, backgroundColor: C.surface },
+  scrollContent: { padding: 16, paddingTop: 18 },
 
   // Search
-  searchRow: { flexDirection: 'row', gap: 8, marginBottom: 12, alignItems: 'center' },
+  searchRow: { flexDirection: 'row', gap: 8, marginBottom: 14, alignItems: 'center' },
   searchWrap: {
     flex: 1, flexDirection: 'row', alignItems: 'center',
-    backgroundColor: C.surface,
-    borderRadius: 10, paddingHorizontal: 12,
+    backgroundColor: C.white,
+    borderRadius: 12, paddingHorizontal: 12,
     borderWidth: 1, borderColor: C.border,
   },
-  searchIcon: { fontSize: 14, marginRight: 6 },
   searchInput: {
-    flex: 1, paddingVertical: 10,
+    flex: 1, paddingVertical: 11,
     fontSize: 13, color: C.textPrimary,
   },
   filterBtn: {
-    width: 40, height: 40, borderRadius: 10,
-    backgroundColor: C.surface,
+    width: 42, height: 42, borderRadius: 12,
+    backgroundColor: C.white,
     borderWidth: 1, borderColor: C.border,
     alignItems: 'center', justifyContent: 'center',
   },
-  filterIcon: { fontSize: 16, color: C.textSecondary },
   loadingWrap: { paddingVertical: 20, alignItems: 'center' },
 
   // Filter Tabs
-  filterTabs: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+  filterTabs: { flexDirection: 'row', gap: 8, marginBottom: 18, flexWrap: 'wrap' },
   filterTab: {
-    paddingHorizontal: 14, paddingVertical: 7,
+    paddingHorizontal: 14, paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: C.surface,
+    backgroundColor: C.white,
     borderWidth: 1, borderColor: C.border,
   },
   filterTabActive: { backgroundColor: C.navy, borderColor: C.navy },
-  filterTabText: { fontSize: 12, fontWeight: '600', color: C.textSecondary },
+  filterTabText: { fontSize: 12, fontWeight: '700', color: C.textSecondary },
   filterTabTextActive: { color: C.white },
 
   // Section Label
   sectionLabel: {
-    fontSize: 10, fontWeight: '700',
-    color: C.textMuted, letterSpacing: 0.8,
+    fontSize: 11, fontWeight: '700',
+    color: C.textMuted, letterSpacing: 0.6,
     marginBottom: 8, marginTop: 4,
   },
 
-  // Transaction Card
+  // Transaction Card group + card
+  txGroup: {
+    backgroundColor: C.white,
+    borderRadius: 16,
+    borderWidth: 1, borderColor: C.border,
+    marginBottom: 16,
+    paddingHorizontal: 12,
+    shadowColor: '#0B1B2E', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 3 },
+    elevation: 1,
+  },
   txCard: {
     flexDirection: 'row', alignItems: 'center',
     gap: 12, paddingVertical: 12,
@@ -333,7 +357,7 @@ const styles = StyleSheet.create({
   txInfo: { flex: 1 },
   txPlate: { fontSize: 14, fontWeight: '700', color: C.textPrimary, marginBottom: 3 },
   txDetail: { fontSize: 11, color: C.textMuted, lineHeight: 16 },
-  txRight: { alignItems: 'flex-end', gap: 4 },
+  txRight: { alignItems: 'flex-end', gap: 5 },
   txAmount: { fontSize: 14, fontWeight: '800', color: C.textPrimary },
   statusBadge: {
     paddingHorizontal: 8, paddingVertical: 2,
