@@ -63,7 +63,7 @@ export default function AccountSettingsScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [motorFee, setMotorFee] = useState('5.00');
   const [fourWheelerFee, setFourWheelerFee] = useState('20.00');
-  const [activeSettings, setActiveSettings] = useState({ systemOption: 'Parking Owner', motorFee: 3.0, fourWheelerFee: 30.0 });
+  const [activeSettings, setActiveSettings] = useState({ systemOption: 'Parking Owner', motorFee: 5.0, fourWheelerFee: 20.0 });
   const scrollViewRef = useRef<ScrollView | null>(null);
   const inputPositions = useRef<Record<string, number>>({});
 

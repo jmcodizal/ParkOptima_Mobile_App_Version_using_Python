@@ -70,6 +70,24 @@ class DbBackedInterfacesTests(unittest.TestCase):
         self.assertEqual(analytics["total_transactions"], 5)
         self.assertEqual(analytics["total_revenue"], 230.0)
 
+    def test_build_owner_analytics_daily_total_uses_series_revenue(self) -> None:
+        with patch("backend.services.fetch_all", return_value=[
+            {"day": "2026-07-20", "entry_count": 1, "revenue": 20.0},
+            {"day": "2026-07-19", "entry_count": 1, "revenue": 0.0},
+        ]):
+            analytics = build_owner_analytics("Daily")
+
+        self.assertEqual(analytics["total_revenue"], 20.0)
+
+    def test_build_owner_analytics_uses_transactions_for_revenue(self) -> None:
+        with patch("backend.services.fetch_all") as mock_fetch_all:
+            build_owner_analytics("Daily")
+
+        query = mock_fetch_all.call_args[0][0]
+        self.assertIn("transactions", query)
+        self.assertIn("status = 'completed'", query)
+        self.assertIn("SUM(CASE WHEN status = 'completed' THEN amount ELSE 0 END)", query)
+
 
 if __name__ == "__main__":
     unittest.main()

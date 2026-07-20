@@ -93,7 +93,7 @@ export default function TransactionHistory() {
           const isToday = createdAt.toDateString() === new Date().toDateString();
           return {
             id: Number(item.id),
-            plate: item.plate || 'N/A',
+            plate: item.plate || `#${Number(item.id)}`,
             vehicleType: item.vehicle_type === '2wheels' ? '2wheels' : '4wheels',
             wheels: item.vehicle_type === '2wheels' ? '2 wheels' : '4 wheels',
             entry: `In ${createdAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`,

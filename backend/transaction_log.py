@@ -11,7 +11,7 @@ def get_owner_transactions() -> List[Dict[str, Any]]:
         {
             "id": int(row["id"]),
             "transaction_uuid": row["transaction_uuid"],
-            "plate": row["plate"] or "N/A",
+            "plate": row["plate"] or f"#{int(row['id'])}",
             "owner_name": row["owner_name"] or "Unknown",
             "amount": float(row["amount"]),
             "currency": row["currency"],

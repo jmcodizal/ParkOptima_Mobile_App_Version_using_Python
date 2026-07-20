@@ -146,6 +146,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: C.navy,
     paddingHorizontal: 16, paddingVertical: 10,
+    marginBottom: 10,
   },
   navLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   navLogoMark: {

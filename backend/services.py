@@ -95,7 +95,7 @@ def build_owner_analytics(period: str = "Daily") -> Dict[str, Any]:
 
     if period_key == "weekly":
         rows = fetch_all(
-            "SELECT DATE(start_time) AS day, COUNT(*) AS entry_count, COALESCE(SUM(CASE WHEN status = 'completed' THEN fee ELSE 0 END), 0) AS revenue FROM parking_sessions WHERE start_time >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) GROUP BY DATE(start_time) ORDER BY day ASC"
+            "SELECT DATE(created_at) AS day, COUNT(*) AS entry_count, COALESCE(SUM(CASE WHEN status = 'completed' THEN amount ELSE 0 END), 0) AS revenue FROM transactions WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) GROUP BY DATE(created_at) ORDER BY day ASC"
         )
         series = []
         for offset in range(6, -1, -1):
@@ -118,7 +118,7 @@ def build_owner_analytics(period: str = "Daily") -> Dict[str, Any]:
 
     if period_key == "monthly":
         rows = fetch_all(
-            "SELECT DATE_FORMAT(start_time, '%Y-%m') AS month, COUNT(*) AS entry_count, COALESCE(SUM(CASE WHEN status = 'completed' THEN fee ELSE 0 END), 0) AS revenue FROM parking_sessions WHERE start_time >= DATE_SUB(CURDATE(), INTERVAL 5 MONTH) GROUP BY DATE_FORMAT(start_time, '%Y-%m') ORDER BY month ASC"
+            "SELECT DATE_FORMAT(created_at, '%Y-%m') AS month, COUNT(*) AS entry_count, COALESCE(SUM(CASE WHEN status = 'completed' THEN amount ELSE 0 END), 0) AS revenue FROM transactions WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 5 MONTH) GROUP BY DATE_FORMAT(created_at, '%Y-%m') ORDER BY month ASC"
         )
         series = []
         for offset in range(5, -1, -1):
@@ -140,7 +140,7 @@ def build_owner_analytics(period: str = "Daily") -> Dict[str, Any]:
         }
 
     rows = fetch_all(
-        "SELECT DATE(start_time) AS day, COUNT(*) AS entry_count, COALESCE(SUM(CASE WHEN status = 'completed' THEN fee ELSE 0 END), 0) AS revenue FROM parking_sessions WHERE start_time >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) GROUP BY DATE(start_time) ORDER BY day ASC"
+        "SELECT DATE(created_at) AS day, COUNT(*) AS entry_count, COALESCE(SUM(CASE WHEN status = 'completed' THEN amount ELSE 0 END), 0) AS revenue FROM transactions WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) GROUP BY DATE(created_at) ORDER BY day ASC"
     )
     series = []
     for offset in range(6, -1, -1):
@@ -154,11 +154,16 @@ def build_owner_analytics(period: str = "Daily") -> Dict[str, Any]:
                 "revenue": float((row or {}).get("revenue") or 0.0),
             }
         )
+
+    total_revenue = float(sum(item["revenue"] for item in series))
+    if total_revenue > 0:
+        total_revenue = round(total_revenue, 2)
+
     return {
         "period": "daily",
         "series": series,
         "total_transactions": sum(item["transactions"] for item in series),
-        "total_revenue": sum(item["revenue"] for item in series),
+        "total_revenue": total_revenue,
     }
 
 
@@ -167,21 +172,21 @@ def build_owner_reports(period: str = "Daily") -> Dict[str, Any]:
 
     if period_key == "weekly":
         stats_row = fetch_one(
-            "SELECT COUNT(*) AS total_entries, COALESCE(SUM(CASE WHEN status = 'completed' THEN fee ELSE 0 END), 0) AS revenue FROM parking_sessions WHERE start_time >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)"
+            "SELECT COUNT(*) AS total_entries, COALESCE(SUM(CASE WHEN status = 'completed' THEN amount ELSE 0 END), 0) AS revenue FROM transactions WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)"
         )
         peak_hour_row = fetch_one(
             "SELECT HOUR(start_time) AS hour, COUNT(*) AS total FROM parking_sessions WHERE start_time >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) GROUP BY HOUR(start_time) ORDER BY total DESC LIMIT 1"
         )
     elif period_key == "monthly":
         stats_row = fetch_one(
-            "SELECT COUNT(*) AS total_entries, COALESCE(SUM(CASE WHEN status = 'completed' THEN fee ELSE 0 END), 0) AS revenue FROM parking_sessions WHERE start_time >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)"
+            "SELECT COUNT(*) AS total_entries, COALESCE(SUM(CASE WHEN status = 'completed' THEN amount ELSE 0 END), 0) AS revenue FROM transactions WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)"
         )
         peak_hour_row = fetch_one(
             "SELECT HOUR(start_time) AS hour, COUNT(*) AS total FROM parking_sessions WHERE start_time >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) GROUP BY HOUR(start_time) ORDER BY total DESC LIMIT 1"
         )
     else:
         stats_row = fetch_one(
-            "SELECT COUNT(*) AS total_entries, COALESCE(SUM(CASE WHEN status = 'completed' THEN fee ELSE 0 END), 0) AS revenue FROM parking_sessions WHERE DATE(start_time) = CURDATE()"
+            "SELECT COUNT(*) AS total_entries, COALESCE(SUM(CASE WHEN status = 'completed' THEN amount ELSE 0 END), 0) AS revenue FROM transactions WHERE DATE(created_at) = CURDATE()"
         )
         peak_hour_row = fetch_one(
             "SELECT HOUR(start_time) AS hour, COUNT(*) AS total FROM parking_sessions WHERE DATE(start_time) = CURDATE() GROUP BY HOUR(start_time) ORDER BY total DESC LIMIT 1"
