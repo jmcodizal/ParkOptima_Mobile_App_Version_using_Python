@@ -447,6 +447,12 @@ export default function ScanEntryScreen() {
             </View>
           )}
         </ScrollView>
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={isCameraVisible ? handleCaptureAndRecognize : handleOpenCamera}
+        >
+          <IconSymbol size={28} name="camera" color="#ffffff" />
+        </TouchableOpacity>
       </KeyboardAvoidingView>
     </View>
     </ThemedView>
@@ -469,7 +475,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     paddingTop: 8,
-    paddingBottom: 28,
+    paddingBottom: 120,
   },
   pageHeader: {
     flexDirection: 'row',
@@ -739,6 +745,23 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontWeight: '700',
     fontSize: 14,
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 28,
+    alignSelf: 'center',
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: COLORS.teal,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 10,
   },
   emptyState: {
     alignItems: 'center',

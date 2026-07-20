@@ -11,6 +11,9 @@ const SF_TO_MATERIAL: Record<string, ComponentProps<typeof MaterialIcons>['name'
   'chart.bar': 'show-chart',
   'creditcard': 'credit-card',
   'person': 'person',
+  'camera': 'photo-camera',
+  'car': 'directions-car',
+  'menu': 'menu',
 };
 
 export function IconSymbol({
