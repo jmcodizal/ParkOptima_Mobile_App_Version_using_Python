@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, TextInput, View, Pressable, TouchableOpacity, Modal, Text } from 'react-native';
+import { ScrollView, StyleSheet, TextInput, View, Pressable, TouchableOpacity, Text } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { Colors } from '@/constants/theme';
@@ -40,7 +40,6 @@ const COLORS = {
 
 export default function MonitorScreen() {
   const router = useRouter();
-  const [scanModalVisible, setScanModalVisible] = useState(false);
   const [summary, setSummary] = useState<any>({ active_count: 0, occupancy_percent: 0, traffic_level: 'Low', total_capacity: 100 });
   const [sessions, setSessions] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -257,46 +256,6 @@ export default function MonitorScreen() {
         </View>
       </View>
     </ScrollView>
-    <TouchableOpacity style={styles.fab} onPress={() => setScanModalVisible(true)}>
-      <IconSymbol size={32} name="camera" color="#ffffff" />
-    </TouchableOpacity>
-    <Modal
-      visible={scanModalVisible}
-      animationType="fade"
-      transparent
-      onRequestClose={() => setScanModalVisible(false)}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContainer}>
-          <Text style={styles.modalTitle}>Choose scan type</Text>
-          <View style={styles.modalButtonsRow}>
-            <TouchableOpacity
-              style={styles.modalButton}
-              onPress={() => {
-                setScanModalVisible(false);
-                router.push('/attendant/scan');
-              }}
-            >
-              <IconSymbol name="qrcode" size={28} color={Colors.light.tint} />
-              <Text style={styles.modalButtonText}>Entry</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.modalButton}
-              onPress={() => {
-                setScanModalVisible(false);
-                router.push('/attendant/scan-out');
-              }}
-            >
-              <IconSymbol name="qrcode" size={28} color={Colors.light.tint} />
-              <Text style={styles.modalButtonText}>Exit</Text>
-            </TouchableOpacity>
-          </View>
-          <TouchableOpacity onPress={() => setScanModalVisible(false)} style={styles.modalClose}>
-            <Text style={styles.modalCloseText}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
     </View>
   );
 }

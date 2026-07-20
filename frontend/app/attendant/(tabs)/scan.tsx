@@ -19,6 +19,7 @@ import { ThemedView } from '@/components/themed-view';
 import TopBar from '@/components/ui/top-bar';
 import { apiRequest, getApiBaseUrl } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 
 // ML Kit OCR import with fallback
 let MLKit: any = null;
@@ -447,12 +448,7 @@ export default function ScanEntryScreen() {
             </View>
           )}
         </ScrollView>
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={isCameraVisible ? handleCaptureAndRecognize : handleOpenCamera}
-        >
-          <IconSymbol size={28} name="camera" color="#ffffff" />
-        </TouchableOpacity>
+        {/* Camera is available from the central tab button; remove per-screen FAB */}
       </KeyboardAvoidingView>
     </View>
     </ThemedView>

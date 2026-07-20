@@ -18,85 +18,44 @@ export default function TabLayout() {
   }
 
   return (
-    <>
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: Colors.light.tint,
-        tabBarStyle: {
-          backgroundColor: '#ffffff',
-          borderTopColor: '#e0e6f5',
-          borderTopWidth: 1,
-          paddingBottom: 1,
-          paddingTop: 5,
-          height: 70,
-          alignItems: 'center',
-        },
-        tabBarItemStyle: {
-          flex: 1,
-          alignSelf: 'center',
-        },
-        tabBarShowLabel: false,
-      }}>
-      <Tabs.Screen
-        name="left-spacer"
-        options={{
-          title: '',
-          tabBarButton: () => <View style={{ flex: 1 }} />,
-        }}
-      />
-      <Tabs.Screen
-        name="scan"
-        options={{
-          title: 'Scan',
-          tabBarButton: (props: any) => (
-            <TouchableOpacity
-              {...props}
-              activeOpacity={0.8}
-              onPress={() => setScanModalVisible(true)}
-              style={[styles.centerButton, props.style]}
-            >
-              <IconSymbol size={28} name="camera" color="#ffffff" />
-            </TouchableOpacity>
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="monitor"
-        options={{
-          title: 'Monitor',
-          tabBarButton: () => null,
-        }}
-      />
-      <Tabs.Screen
-        name="payments"
-        options={{
-          title: 'Payments',
-          tabBarButton: () => null,
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profile',
-          tabBarButton: () => null,
-        }}
-      />
-      <Tabs.Screen
-        name="scan-out"
-        options={{
-          title: 'Exit',
-          tabBarButton: () => null,
-        }}
-      />
-      <Tabs.Screen
-        name="right-spacer"
-        options={{
-          title: '',
-          tabBarButton: () => <View style={{ flex: 1 }} />,
-        }}
-      />
-    </Tabs>
+    <View style={styles.container}>
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarStyle: {
+            display: 'none',
+          },
+        }}>
+        <Tabs.Screen
+          name="monitor"
+          options={{
+            title: 'Monitor',
+            tabBarButton: () => null,
+          }}
+        />
+        <Tabs.Screen
+          name="payments"
+          options={{
+            title: 'Payments',
+            tabBarButton: () => null,
+          }}
+        />
+        <Tabs.Screen
+          name="profile"
+          options={{
+            title: 'Profile',
+            tabBarButton: () => null,
+          }}
+        />
+      </Tabs>
+
+      <TouchableOpacity
+        activeOpacity={0.8}
+        onPress={() => setScanModalVisible(true)}
+        style={styles.centerButton}
+      >
+        <IconSymbol size={28} name="camera" color="#ffffff" />
+      </TouchableOpacity>
 
       <Modal
         visible={scanModalVisible}
@@ -135,24 +94,32 @@ export default function TabLayout() {
           </View>
         </View>
       </Modal>
-    </>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
   centerButton: {
+    position: 'absolute',
+    bottom: 18,
+    left: '50%',
+    transform: [{ translateX: -32 }],
     width: 64,
     height: 64,
     borderRadius: 32,
     backgroundColor: Colors.light.tint,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -28,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.12,
     shadowRadius: 10,
     elevation: 6,
+    zIndex: 10,
+    marginBottom: 20,
   },
   modalOverlay: {
     flex: 1,

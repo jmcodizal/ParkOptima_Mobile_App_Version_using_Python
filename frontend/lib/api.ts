@@ -49,7 +49,7 @@ const DEFAULT_API_BASE = (() => {
     return `http://${expoHost}:8000`;
   }
 
-  return Platform.OS === 'android' ? 'http://10.0.2.2:8001' : 'http://localhost:8001';
+  return Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000';
 })();
 
 const isExpoTunnelHost = (value: string) => {

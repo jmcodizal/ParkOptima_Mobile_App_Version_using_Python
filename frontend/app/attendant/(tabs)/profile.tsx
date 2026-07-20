@@ -8,7 +8,6 @@ import {
   StyleSheet,
   StatusBar,
   Alert,
-  Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from 'expo-router';
@@ -156,7 +155,6 @@ function PasswordField({
 export default function MyProfileScreen() {
   const { userId } = useAuth();
   const router = useRouter();
-  const [scanModalVisible, setScanModalVisible] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -336,46 +334,6 @@ export default function MyProfileScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
-      <TouchableOpacity style={styles.fab} onPress={() => setScanModalVisible(true)}>
-        <IconSymbol size={32} name="camera" color="#ffffff" />
-      </TouchableOpacity>
-      <Modal
-        visible={scanModalVisible}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setScanModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <Text style={styles.modalTitle}>Choose scan type</Text>
-            <View style={styles.modalButtonsRow}>
-              <TouchableOpacity
-                style={styles.modalButton}
-                onPress={() => {
-                  setScanModalVisible(false);
-                  router.push('/attendant/scan');
-                }}
-              >
-                <IconSymbol name="qrcode" size={28} color={Colors.light.tint} />
-                <Text style={styles.modalButtonText}>Entry</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.modalButton}
-                onPress={() => {
-                  setScanModalVisible(false);
-                  router.push('/attendant/scan-out');
-                }}
-              >
-                <IconSymbol name="qrcode" size={28} color={Colors.light.tint} />
-                <Text style={styles.modalButtonText}>Exit</Text>
-              </TouchableOpacity>
-            </View>
-            <TouchableOpacity onPress={() => setScanModalVisible(false)} style={styles.modalClose}>
-              <Text style={styles.modalCloseText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
