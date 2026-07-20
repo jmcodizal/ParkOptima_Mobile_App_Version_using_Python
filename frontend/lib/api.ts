@@ -39,17 +39,26 @@ const getExpoHostFromConstants = (): string | null => {
   return resolveHost(hostUri);
 };
 
+const DEFAULT_API_PORT = process.env.EXPO_PUBLIC_API_PORT || process.env.API_PORT || '8001';
+
 const DEFAULT_API_BASE = (() => {
   if (Platform.OS === 'web') {
-    return 'http://localhost:8000';
+    // For web, check if running on localhost or LAN
+    const isDev = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    if (isDev) {
+      return `http://127.0.0.1:${DEFAULT_API_PORT}`;
+    }
+    // For LAN access, extract the host and use it for the backend too
+    const machineIp = typeof window !== 'undefined' ? window.location.hostname : '127.0.0.1';
+    return `http://${machineIp}:${DEFAULT_API_PORT}`;
   }
 
   const expoHost = getExpoHostFromConstants();
   if (expoHost) {
-    return `http://${expoHost}:8000`;
+    return `http://${expoHost}:${DEFAULT_API_PORT}`;
   }
 
-  return Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000';
+  return Platform.OS === 'android' ? `http://10.0.2.2:${DEFAULT_API_PORT}` : `http://127.0.0.1:${DEFAULT_API_PORT}`;
 })();
 
 const isExpoTunnelHost = (value: string) => {

@@ -11,6 +11,7 @@ import {
   Switch,
   Alert,
   Image,
+  Keyboard,
 } from 'react-native';
 import { CameraView, Camera } from 'expo-camera';
 
@@ -80,6 +81,8 @@ export default function ScanExitScreen() {
   const [isScanning, setIsScanning] = useState(false);
   const [ocrResult, setOcrResult] = useState('');
   const cameraRef = useRef<any>(null);
+  const scrollViewRef = useRef<ScrollView | null>(null);
+  const inputPositions = useRef<Record<string, number>>({});
   const { userId } = useAuth();
 
   const handleSubmitExit = async () => {
@@ -90,7 +93,7 @@ export default function ScanExitScreen() {
 
     setLoading(true);
     try {
-      const response = await apiRequest<any>('/api/scan', {
+      const response = await apiRequest<any>('/api/scan-out', {
         method: 'POST',
         body: JSON.stringify({
           plate: plateNumber.trim(),
@@ -100,7 +103,7 @@ export default function ScanExitScreen() {
           color: vehicleColor,
         }),
       });
-      setMessage(response.message || 'Parking session started');
+      setMessage(response.message || 'Parking session completed');
       setPlateNumber('');
       setBrandModel('');
       setVehicleColor('');
@@ -109,6 +112,20 @@ export default function ScanExitScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const scrollInputIntoView = (field: 'plate' | 'brand' | 'color') => {
+    const container = scrollViewRef.current;
+    if (!container) {
+      return;
+    }
+
+    const offsetY = Math.max(0, (inputPositions.current[field] || 0) - 90);
+    container.scrollTo({ y: offsetY, animated: true });
+  };
+
+  const handleInputLayout = (field: 'plate' | 'brand' | 'color', event: any) => {
+    inputPositions.current[field] = event.nativeEvent.layout.y;
   };
 
   useEffect(() => {
@@ -121,8 +138,19 @@ export default function ScanExitScreen() {
       setCameraReady(false);
     };
 
+    const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', () => {
+      setTimeout(() => {
+        if (activeTab === 'Manual Exit') {
+          scrollInputIntoView('plate');
+        }
+      }, 120);
+    });
+
     checkPermission();
-  }, []);
+    return () => {
+      keyboardDidShowListener.remove();
+    };
+  }, [activeTab]);
 
   const handleOpenCamera = async () => {
     const permission = await Camera.getCameraPermissionsAsync();
@@ -230,14 +258,18 @@ export default function ScanExitScreen() {
 
       <View style={styles.safeArea}>
         <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.keyboardContainer}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
           <ScrollView
+            ref={scrollViewRef}
             style={styles.scroll}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            contentInsetAdjustmentBehavior="automatic"
+            keyboardDismissMode="interactive"
           >
           <View style={styles.pageHeader}>
             <View style={styles.headerTextWrap}>
@@ -284,7 +316,7 @@ export default function ScanExitScreen() {
                 </View>
               </View>
               <Text style={styles.vehicleLabel}>Motor</Text>
-              <Text style={styles.vehiclePrice}>₱6.00 FLAT RATE</Text>
+              <Text style={styles.vehiclePrice}>₱5.00 FLAT RATE</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -370,6 +402,7 @@ export default function ScanExitScreen() {
                     placeholder="Recognized plate will appear here"
                     placeholderTextColor={COLORS.textMuted}
                     autoCapitalize="characters"
+                    onFocus={() => scrollInputIntoView('plate')}
                   />
                 </View>
                 <TouchableOpacity
@@ -399,6 +432,7 @@ export default function ScanExitScreen() {
                   placeholder="Enter plate number"
                   placeholderTextColor={COLORS.textMuted}
                   autoCapitalize="characters"
+                  onFocus={() => scrollInputIntoView('plate')}
                 />
               </View>
 
@@ -417,6 +451,7 @@ export default function ScanExitScreen() {
                   placeholder="Enter brand model"
                   placeholderTextColor={COLORS.textMuted}
                   autoCapitalize="characters"
+                  onFocus={() => scrollInputIntoView('brand')}
                 />
               </View>
 
@@ -434,6 +469,7 @@ export default function ScanExitScreen() {
                   placeholder="Enter vehicle color"
                   placeholderTextColor={COLORS.textMuted}
                   autoCapitalize="characters"
+                  onFocus={() => scrollInputIntoView('color')}
                 />
               </View>
 
@@ -468,10 +504,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.surface,
   },
+  keyboardContainer: {
+    flex: 1,
+  },
   scrollContent: {
     paddingHorizontal: 16,
     paddingTop: 8,
-    paddingBottom: 120,
+    paddingBottom: 180,
   },
   pageHeader: {
     flexDirection: 'row',

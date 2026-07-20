@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,9 @@ import {
   SafeAreaView,
   TextInput,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -61,6 +64,32 @@ export default function AccountSettingsScreen() {
   const [motorFee, setMotorFee] = useState('5.00');
   const [fourWheelerFee, setFourWheelerFee] = useState('20.00');
   const [activeSettings, setActiveSettings] = useState({ systemOption: 'Parking Owner', motorFee: 3.0, fourWheelerFee: 30.0 });
+  const scrollViewRef = useRef<ScrollView | null>(null);
+  const inputPositions = useRef<Record<string, number>>({});
+
+  const scrollInputIntoView = (field: string) => {
+    const container = scrollViewRef.current;
+    if (!container) {
+      return;
+    }
+
+    const offsetY = Math.max(0, (inputPositions.current[field] || 0) - 90);
+    container.scrollTo({ y: offsetY, animated: true });
+  };
+
+  const handleInputLayout = (field: string, event: any) => {
+    inputPositions.current[field] = event.nativeEvent.layout.y;
+  };
+
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', () => {
+      setTimeout(() => scrollInputIntoView('password'), 120);
+    });
+
+    return () => {
+      keyboardDidShowListener.remove();
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -162,13 +191,21 @@ export default function AccountSettingsScreen() {
         <Text style={styles.headerSubtitle}>Manage your profile and security preferences</Text>
       </View>
 
-      <ScrollView
-        style={styles.body}
-        contentContainerStyle={styles.bodyContent}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        style={styles.keyboardContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-        {/* Profile card */}
-        <View style={styles.profileCard}>
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.body}
+          contentContainerStyle={styles.bodyContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+        >
+          {/* Profile card */}
+          <View style={styles.profileCard}>
           <View style={styles.profileAvatar}>
             <Ionicons name="person" size={26} color={C.indigo} />
           </View>
@@ -191,6 +228,7 @@ export default function AccountSettingsScreen() {
           <TextInput
             style={styles.input}
             value={fullName}
+            onFocus={() => scrollInputIntoView('fullName')}
             onChangeText={setFullName}
             placeholder="Full name"
             placeholderTextColor={C.textMuted}
@@ -200,6 +238,7 @@ export default function AccountSettingsScreen() {
           <TextInput
             style={styles.input}
             value={email}
+            onFocus={() => scrollInputIntoView('email')}
             onChangeText={setEmail}
             placeholder="Email address"
             placeholderTextColor={C.textMuted}
@@ -211,6 +250,7 @@ export default function AccountSettingsScreen() {
           <TextInput
             style={[styles.input, { marginBottom: 0 }]}
             value={phone}
+            onFocus={() => scrollInputIntoView('phone')}
             onChangeText={setPhone}
             placeholder="Phone number"
             placeholderTextColor={C.textMuted}
@@ -230,6 +270,7 @@ export default function AccountSettingsScreen() {
           <TextInput
             style={styles.input}
             value={currentPassword}
+            onFocus={() => scrollInputIntoView('currentPassword')}
             onChangeText={setCurrentPassword}
             placeholder="Current password"
             placeholderTextColor={C.textMuted}
@@ -240,6 +281,7 @@ export default function AccountSettingsScreen() {
           <TextInput
             style={styles.input}
             value={newPassword}
+            onFocus={() => scrollInputIntoView('newPassword')}
             onChangeText={setNewPassword}
             placeholder="New password"
             placeholderTextColor={C.textMuted}
@@ -250,6 +292,7 @@ export default function AccountSettingsScreen() {
           <TextInput
             style={[styles.input, { marginBottom: 0 }]}
             value={confirmPassword}
+            onFocus={() => scrollInputIntoView('confirmPassword')}
             onChangeText={setConfirmPassword}
             placeholder="Confirm new password"
             placeholderTextColor={C.textMuted}
@@ -328,30 +371,32 @@ export default function AccountSettingsScreen() {
           </View>
         </View>
 
-        {/* Save changes button */}
-        <TouchableOpacity style={styles.saveButton} onPress={handleSaveChanges} activeOpacity={0.85}>
-          <Ionicons name="save" size={16} color={C.white} style={{ marginRight: 8 }} />
-          <Text style={styles.saveButtonText}>Save changes</Text>
-        </TouchableOpacity>
+          {/* Save changes button */}
+          <TouchableOpacity style={styles.saveButton} onPress={handleSaveChanges} activeOpacity={0.85}>
+            <Ionicons name="save" size={16} color={C.white} style={{ marginRight: 8 }} />
+            <Text style={styles.saveButtonText}>Save changes</Text>
+          </TouchableOpacity>
 
-        {/* Logout button */}
-        <TouchableOpacity
-          style={styles.logoutButton}
-          onPress={handleLogout}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="log-out-outline" size={18} color={C.errorText} />
-          <Text style={styles.logoutButtonText}>Log out</Text>
-        </TouchableOpacity>
+          {/* Logout button */}
+          <TouchableOpacity
+            style={styles.logoutButton}
+            onPress={handleLogout}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="log-out-outline" size={18} color={C.errorText} />
+            <Text style={styles.logoutButtonText}>Log out</Text>
+          </TouchableOpacity>
 
-        <View style={{ height: 16 }} />
-      </ScrollView>
+          <View style={{ height: 16 }} />
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: C.navy },
+  keyboardContainer: { flex: 1 },
 
   // Navbar — matches Overview
   navbar: {

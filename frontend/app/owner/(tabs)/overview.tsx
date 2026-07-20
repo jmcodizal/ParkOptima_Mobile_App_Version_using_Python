@@ -147,11 +147,14 @@ export default function OwnerDashboard() {
     return hourlyFlow.slice(0, 12).length > 0 ? hourlyFlow.slice(0, 12) : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
   }, [dashboard]);
 
-  const occupancyPercent = dashboard?.active_count && dashboard?.vehicle_count
-    ? Math.min(100, Math.round((dashboard.active_count / Math.max(1, dashboard.vehicle_count)) * 100))
+  const activeCount = Number(dashboard?.active_count ?? 0);
+  const parkingCapacity = Number(dashboard?.parking_capacity ?? 100);
+
+  const occupancyPercent = activeCount > 0
+    ? Math.min(100, Math.round((activeCount / Math.max(1, parkingCapacity)) * 100))
     : 0;
 
-  const availableSlots = Math.max(0, (dashboard?.vehicle_count || 0) - (dashboard?.active_count || 0));
+  const availableSlots = Math.max(0, parkingCapacity - activeCount);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -216,7 +219,7 @@ export default function OwnerDashboard() {
                 <View style={styles.occupancyStats}>
                   <View style={styles.statRow}>
                     <Text style={styles.statLabel}>Occupied</Text>
-                    <Text style={styles.statValue}>{dashboard?.active_count ?? 0} / {dashboard?.vehicle_count ?? 0}</Text>
+                    <Text style={styles.statValue}>{dashboard?.active_count ?? 0} / {dashboard?.parking_capacity ?? 0}</Text>
                   </View>
                   <View style={styles.statRow}>
                     <Text style={styles.statLabel}>Available</Text>
@@ -307,7 +310,7 @@ export default function OwnerDashboard() {
               key={tx.id}
               style={[styles.txRow, i > 0 && styles.txRowBorder]}>
               <View>
-                <Text style={styles.txPlate}>{tx.plate}</Text>
+                <Text style={styles.txPlate}>{tx.plate === 'N/A' ? `Transaction #${tx.id}` : tx.plate}</Text>
                 <Text style={styles.txTime}>{new Date(tx.created_at).toLocaleString()}</Text>
               </View>
               <Text style={styles.txAmount}>{`₱${Number(tx.amount || 0).toFixed(2)}`}</Text>

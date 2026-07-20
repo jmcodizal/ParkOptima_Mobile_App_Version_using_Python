@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,9 @@ import {
   StyleSheet,
   StatusBar,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from 'expo-router';
@@ -73,6 +76,8 @@ function FormField({
   keyboardType = "default",
   icon,
   valueColor,
+  onFocus,
+  onLayout,
 }: {
   label: string;
   value: string;
@@ -81,9 +86,11 @@ function FormField({
   keyboardType?: any;
   icon?: keyof typeof Ionicons.glyphMap;
   valueColor?: string;
+  onFocus?: () => void;
+  onLayout?: (event: any) => void;
 }) {
   return (
-    <View style={styles.fieldWrap}>
+    <View style={styles.fieldWrap} onLayout={onLayout}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <View style={styles.inputRow}>
         {icon && (
@@ -93,6 +100,7 @@ function FormField({
         )}
         <TextInput
           style={[styles.input, valueColor ? { color: valueColor } : null]}
+          onFocus={onFocus}
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder || label}
@@ -111,12 +119,16 @@ function PasswordField({
   onChangeText,
   placeholder,
   errorMsg,
+  onFocus,
+  onLayout,
 }: {
   label: string;
   value: string;
   onChangeText: (t: string) => void;
   placeholder?: string;
   errorMsg?: string;
+  onFocus?: () => void;
+  onLayout?: (event: any) => void;
 }) {
   const [show, setShow] = useState(false);
 
@@ -129,6 +141,7 @@ function PasswordField({
         </View>
         <TextInput
           style={[styles.input, { flex: 1 }]}
+          onFocus={onFocus}
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder || label}
@@ -165,6 +178,32 @@ export default function MyProfileScreen() {
   const [pwError, setPwError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [loading, setLoading] = useState(false);
+  const scrollViewRef = useRef<ScrollView | null>(null);
+  const inputPositions = useRef<Record<string, number>>({});
+
+  const scrollInputIntoView = (field: string) => {
+    const container = scrollViewRef.current;
+    if (!container) {
+      return;
+    }
+
+    const offsetY = Math.max(0, (inputPositions.current[field] || 0) - 90);
+    container.scrollTo({ y: offsetY, animated: true });
+  };
+
+  const handleInputLayout = (field: string, event: any) => {
+    inputPositions.current[field] = event.nativeEvent.layout.y;
+  };
+
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', () => {
+      setTimeout(() => scrollInputIntoView('password'), 120);
+    });
+
+    return () => {
+      keyboardDidShowListener.remove();
+    };
+  }, []);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -240,17 +279,29 @@ export default function MyProfileScreen() {
     <View style={styles.safe}>
       <TopBar />
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        {/* Page Header */}
-        <View style={styles.pageHeader}>
-          <Text style={styles.pageTitle}>My Profile</Text>
-          <Text style={styles.pageSubtitle}>Update your details</Text>
-        </View>
+      <KeyboardAvoidingView
+        style={styles.keyboardContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          keyboardDismissMode="interactive"
+        >
+          {/* Page Header */}
+          <View style={styles.pageHeader}>
+            <Text style={styles.pageTitle}>My Profile</Text>
+            <Text style={styles.pageSubtitle}>Update your details</Text>
+          </View>
 
-        <AvatarSection successMsg={successMsg} />
+          <AvatarSection successMsg={successMsg} />
 
-        {/* ── General Information ── */}
-        <View style={styles.card}>
+          {/* ── General Information ── */}
+          <View style={styles.card}>
           <View style={styles.cardHeader}>
             <Ionicons name="information-circle" size={16} color={C.teal} />
             <Text style={styles.cardTitle}>Personal information</Text>
@@ -263,6 +314,7 @@ export default function MyProfileScreen() {
                 value={firstName}
                 onChangeText={setFirstName}
                 placeholder="First Name"
+                onFocus={() => scrollInputIntoView('profile')}
               />
             </View>
             <View style={{ flex: 1 }}>
@@ -271,6 +323,7 @@ export default function MyProfileScreen() {
                 value={lastName}
                 onChangeText={setLastName}
                 placeholder="Last Name"
+                onFocus={() => scrollInputIntoView('profile')}
               />
             </View>
           </View>
@@ -283,6 +336,7 @@ export default function MyProfileScreen() {
             keyboardType="email-address"
             icon="mail"
             valueColor={C.teal}
+            onFocus={() => scrollInputIntoView('profile')}
           />
 
           <FormField
@@ -293,6 +347,7 @@ export default function MyProfileScreen() {
             keyboardType="phone-pad"
             icon="call"
             valueColor={C.teal}
+            onFocus={() => scrollInputIntoView('profile')}
           />
 
           <TouchableOpacity style={styles.btnTeal} onPress={handleSaveProfile} activeOpacity={0.85}>
@@ -301,39 +356,44 @@ export default function MyProfileScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ── Password Information ── */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Ionicons name="lock-closed" size={16} color={C.teal} />
-            <Text style={styles.cardTitle}>Change password</Text>
+          {/* ── Password Information ── */}
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Ionicons name="lock-closed" size={16} color={C.teal} />
+              <Text style={styles.cardTitle}>Change password</Text>
+            </View>
+
+            <PasswordField
+              label="CURRENT PASSWORD"
+              value={currentPw}
+              onChangeText={setCurrentPw}
+              placeholder="Enter current password"
+              onFocus={() => scrollInputIntoView('password')}
+              onLayout={(event) => handleInputLayout('password', event)}
+            />
+
+            <PasswordField
+              label="NEW PASSWORD"
+              value={newPw}
+              onChangeText={validateNewPw}
+              placeholder="Enter new password"
+              errorMsg={pwError}
+              onFocus={() => scrollInputIntoView('password')}
+              onLayout={(event) => handleInputLayout('password', event)}
+            />
+
+            <TouchableOpacity
+              style={[styles.btnNavy, (!currentPw || !newPw || !!pwError) && styles.btnDisabled]}
+              onPress={handleSavePassword}
+              activeOpacity={0.85}
+              disabled={!currentPw || !newPw || !!pwError}
+            >
+              <Ionicons name="save-outline" size={16} color={C.white} />
+              <Text style={styles.btnText}>Save password</Text>
+            </TouchableOpacity>
           </View>
-
-          <PasswordField
-            label="CURRENT PASSWORD"
-            value={currentPw}
-            onChangeText={setCurrentPw}
-            placeholder="Enter current password"
-          />
-
-          <PasswordField
-            label="NEW PASSWORD"
-            value={newPw}
-            onChangeText={validateNewPw}
-            placeholder="Enter new password"
-            errorMsg={pwError}
-          />
-
-          <TouchableOpacity
-            style={[styles.btnNavy, (!currentPw || !newPw || !!pwError) && styles.btnDisabled]}
-            onPress={handleSavePassword}
-            activeOpacity={0.85}
-            disabled={!currentPw || !newPw || !!pwError}
-          >
-            <Ionicons name="save-outline" size={16} color={C.white} />
-            <Text style={styles.btnText}>Save password</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }
@@ -404,6 +464,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   safe: { flex: 1, backgroundColor: C.surface },
+  keyboardContainer: { flex: 1 },
   nav: { backgroundColor: C.navyDark, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10 },
   navLogo: { flexDirection: "row", alignItems: "center", gap: 6 },
   navLogoText: { color: C.white, fontWeight: "700", fontSize: 15 },

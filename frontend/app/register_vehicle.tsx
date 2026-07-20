@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 import {
   View,
@@ -11,6 +11,7 @@ import {
   Platform,
   ScrollView,
   useWindowDimensions,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { apiRequest } from '@/lib/api';
@@ -137,7 +138,33 @@ export default function RegisterVehicle() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const scrollViewRef = useRef<ScrollView | null>(null);
+  const inputPositions = useRef<Record<string, number>>({});
   const router = useRouter();
+
+  const scrollInputIntoView = (field: string) => {
+    const container = scrollViewRef.current;
+    if (!container) {
+      return;
+    }
+
+    const offsetY = Math.max(0, (inputPositions.current[field] || 0) - 90);
+    container.scrollTo({ y: offsetY, animated: true });
+  };
+
+  const handleInputLayout = (field: string, event: any) => {
+    inputPositions.current[field] = event.nativeEvent.layout.y;
+  };
+
+  React.useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', () => {
+      setTimeout(() => scrollInputIntoView('pin'), 120);
+    });
+
+    return () => {
+      keyboardDidShowListener.remove();
+    };
+  }, []);
 
   const brandOptions = BRANDS_BY_TYPE[vehicleType] ?? [];
   const displayBrand = brand === 'Others' ? customBrand : brand;
@@ -220,10 +247,12 @@ export default function RegisterVehicle() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
+          ref={scrollViewRef}
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          keyboardDismissMode="interactive"
         >
           <View style={styles.heroRow}>
             <View style={styles.heroLogo}>
@@ -262,6 +291,7 @@ export default function RegisterVehicle() {
             <TextInput
               style={styles.input}
               value={contact}
+              onFocus={() => scrollInputIntoView('contact')}
               onChangeText={setContact}
               placeholder="e.g. 09123456789"
               placeholderTextColor={COLORS.textMuted}
@@ -305,6 +335,7 @@ export default function RegisterVehicle() {
                 <TextInput
                   style={styles.input}
                   value={customBrand}
+                  onFocus={() => scrollInputIntoView('customBrand')}
                   onChangeText={setCustomBrand}
                   placeholder="Enter brand name"
                   placeholderTextColor={COLORS.textMuted}
@@ -325,6 +356,7 @@ export default function RegisterVehicle() {
             <TextInput
               style={styles.input}
               value={pin}
+              onFocus={() => scrollInputIntoView('pin')}
               onChangeText={t => setPin(t.slice(0, 4))}
               placeholder="···"
               placeholderTextColor={COLORS.textMuted}
@@ -346,6 +378,7 @@ export default function RegisterVehicle() {
             <TextInput
               style={styles.input}
               value={confirmPin}
+              onFocus={() => scrollInputIntoView('confirmPin')}
               onChangeText={t => setConfirmPin(t.slice(0, 4))}
               placeholder="···"
               placeholderTextColor={COLORS.textMuted}

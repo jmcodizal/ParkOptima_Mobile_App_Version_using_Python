@@ -1,6 +1,8 @@
 import os
+import tempfile
 import uuid
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import mysql.connector
@@ -401,13 +403,13 @@ async def owner_dashboard() -> Dict[str, Any]:
 
 
 @app.get("/api/owner/analytics")
-async def owner_analytics() -> Dict[str, Any]:
-    return get_owner_analytics()
+async def owner_analytics(period: str = Query(default="Daily")) -> Dict[str, Any]:
+    return get_owner_analytics(period)
 
 
 @app.get("/api/owner/reports")
-async def owner_reports() -> Dict[str, Any]:
-    return build_owner_reports()
+async def owner_reports(period: str = Query(default="Daily")) -> Dict[str, Any]:
+    return build_owner_reports(period)
 
 
 @app.get("/api/owner/transactions")
@@ -522,42 +524,59 @@ async def vision_detect(file: UploadFile = File(...)) -> Dict[str, Any]:
     if not contents:
         raise HTTPException(status_code=400, detail="No image uploaded")
 
-    temp_path = f"/tmp/{uuid.uuid4().hex}_{file.filename or 'upload.jpg'}"
-    with open(temp_path, "wb") as handle:
+    suffix = Path(file.filename or "upload.jpg").suffix or ".jpg"
+    with tempfile.NamedTemporaryFile("wb", suffix=suffix, delete=False) as handle:
         handle.write(contents)
+        temp_path = handle.name
 
-    image = cv2.imread(temp_path)
-    if image is None:
-        raise HTTPException(status_code=400, detail="Unable to read uploaded image")
+    try:
+        image = cv2.imread(temp_path)
+        if image is None:
+            raise HTTPException(status_code=400, detail="Unable to read uploaded image")
 
-    # YOLOv8 object detection
-    model = YOLO("yolov8n.pt")
-    detection_results = model(temp_path, stream=True, conf=0.25)
+        # YOLOv8 object detection
+        model = YOLO("yolov8n.pt")
+        detection_results = model(temp_path, stream=True, conf=0.25)
 
-    detected_objects: List[Dict[str, Any]] = []
-    for result in detection_results:
-        for box in result.boxes:
-            class_id = int(box.cls[0]) if len(box.cls) else -1
-            class_name = model.names.get(class_id, str(class_id)) if hasattr(model, "names") else str(class_id)
-            detected_objects.append(
-                {
-                    "class": class_name,
-                    "confidence": float(box.conf[0]) if len(box.conf) else 0.0,
-                    "bbox": [float(value) for value in box.xyxy[0]],
-                }
-            )
+        detected_objects: List[Dict[str, Any]] = []
+        for result in detection_results:
+            for box in result.boxes:
+                class_id = int(box.cls[0]) if len(box.cls) else -1
+                class_name = model.names.get(class_id, str(class_id)) if hasattr(model, "names") else str(class_id)
+                detected_objects.append(
+                    {
+                        "class": class_name,
+                        "confidence": float(box.conf[0]) if len(box.conf) else 0.0,
+                        "bbox": [float(value) for value in box.xyxy[0]],
+                    }
+                )
 
-    # OCR
-    reader = easyocr.Reader(["en"], gpu=False)
-    text_results = reader.readtext(temp_path, detail=0, paragraph=False)
-    normalized_plate = extract_plate_candidate(text_results)
+        # OCR
+        reader = easyocr.Reader(["en"], gpu=False)
+        text_results = reader.readtext(temp_path, detail=0, paragraph=False)
+        normalized_plate = extract_plate_candidate(text_results)
 
-    return {
-        "status": "ok",
-        "objects": detected_objects,
-        "text": text_results,
-        "plate": normalized_plate,
-    }
+        return {
+            "status": "ok",
+            "objects": detected_objects,
+            "text": text_results,
+            "plate": normalized_plate,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        return {
+            "status": "error",
+            "message": f"Vision processing failed: {exc}",
+            "objects": [],
+            "text": [],
+            "plate": None,
+        }
+    finally:
+        try:
+            os.remove(temp_path)
+        except FileNotFoundError:
+            pass
 
 
 @app.get("/")

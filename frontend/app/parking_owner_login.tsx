@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Platform,
   ScrollView,
   Alert,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -45,8 +46,45 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [remember, setRemember] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const scrollViewRef = useRef<ScrollView | null>(null);
+  const inputPositions = useRef<Record<string, number>>({});
 
-  React.useEffect(() => {
+  const scrollInputIntoView = (field: 'email' | 'password', activeKeyboardHeight = 0) => {
+    const container = scrollViewRef.current;
+    if (!container) {
+      return;
+    }
+
+    const fieldY = inputPositions.current[field] || 0;
+    const extraOffset = Math.max(100, activeKeyboardHeight > 0 ? activeKeyboardHeight - 120 : 110);
+    const offsetY = Math.max(0, fieldY - extraOffset);
+    container.scrollTo({ y: offsetY, animated: true });
+  };
+
+  const handleInputLayout = (field: 'email' | 'password', event: any) => {
+    inputPositions.current[field] = event.nativeEvent.layout.y;
+  };
+
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', (event) => {
+      setKeyboardHeight(event.endCoordinates?.height || 0);
+      setTimeout(() => {
+        scrollInputIntoView('password', event.endCoordinates?.height || 0);
+      }, 120);
+    });
+
+    const keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      keyboardDidShowListener.remove();
+      keyboardDidHideListener.remove();
+    };
+  }, []);
+
+  useEffect(() => {
     const hydrate = async () => {
       const saved = await loadRememberedCredentials<{ email: string; password: string; remember: boolean }>('parking-owner-login');
       if (saved?.remember) {
@@ -113,12 +151,16 @@ export default function LoginScreen() {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         <ScrollView
+          ref={scrollViewRef}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          keyboardDismissMode="interactive"
+          contentInsetAdjustmentBehavior="automatic"
         >
           <LoginFormContainer>
             <View style={styles.formContent}>
@@ -143,11 +185,15 @@ export default function LoginScreen() {
                   onChangeText={setEmail}
                   autoCapitalize="none"
                   keyboardType="email-address"
+                  onFocus={() => scrollInputIntoView('email', keyboardHeight)}
                 />
               </View>
 
               <Text style={styles.label}>PASSWORD</Text>
-              <View style={styles.inputWrapper}>
+              <View
+                style={styles.inputWrapper}
+                onLayout={(event) => handleInputLayout('password', event)}
+              >
                 <View style={styles.inputIconCircle}>
                   <Ionicons name="lock-closed" size={13} color="#fff" />
                 </View>
@@ -158,6 +204,7 @@ export default function LoginScreen() {
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
+                  onFocus={() => scrollInputIntoView('password', keyboardHeight)}
                 />
                 <TouchableOpacity style={styles.toggleButton} onPress={() => setShowPassword(!showPassword)}>
                   <Ionicons

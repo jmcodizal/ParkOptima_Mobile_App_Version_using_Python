@@ -64,8 +64,8 @@ const styles = StyleSheet.create({
     paddingBottom: 48,
   },
   backgroundImage: {
-    width: 400,
-    height: 900,
+    width: 500,
+    height: 1000,
     resizeMode: 'cover',
   },
 

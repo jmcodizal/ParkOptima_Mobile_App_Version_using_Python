@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import patch
 
 from backend.scan import create_parking_session
-from backend.services import build_owner_reports
+from backend.services import build_owner_analytics, build_owner_reports
 
 
 class DummyCursor:
@@ -47,9 +47,9 @@ class DbBackedInterfacesTests(unittest.TestCase):
     def test_build_owner_reports_uses_database_counts(self) -> None:
         with patch("backend.services.fetch_one", side_effect=[
             {"total_entries": 4, "revenue": 120.0},
+            {"hour": 14, "total": 4},
             {"total": 10},
             {"total": 2},
-            {"hour": 14, "total": 4},
             {"total": 10, "completed": 8},
             {"total": 6},
         ]):
@@ -58,6 +58,17 @@ class DbBackedInterfacesTests(unittest.TestCase):
         self.assertEqual(report["system_reliability"], 80)
         self.assertEqual(report["returning"], "6 returning visitors")
         self.assertEqual(report["peak_entry_time"], "14:00")
+
+    def test_build_owner_analytics_supports_weekly_period(self) -> None:
+        with patch("backend.services.fetch_all", return_value=[
+            {"day": "2026-07-20", "entry_count": 3, "revenue": 150.0},
+            {"day": "2026-07-19", "entry_count": 2, "revenue": 80.0},
+        ]):
+            analytics = build_owner_analytics("Weekly")
+
+        self.assertEqual(analytics["period"], "weekly")
+        self.assertEqual(analytics["total_transactions"], 5)
+        self.assertEqual(analytics["total_revenue"], 230.0)
 
 
 if __name__ == "__main__":

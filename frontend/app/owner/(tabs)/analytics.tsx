@@ -50,18 +50,25 @@ const CHART_W = width - 64;
 // Dual sparkline chart (Revenue + Entries)
 function DualSparkLine({ revenue, entries }: { revenue: number[]; entries: number[] }) {
   const H = 80;
-  const allVals = [...revenue, ...entries];
+  const allVals = [...revenue, ...entries].filter(v => typeof v === 'number');
+  
+  // Handle edge cases
+  if (revenue.length < 2 || allVals.length === 0) {
+    return <Text style={styles.emptyState}>Insufficient data for chart</Text>;
+  }
+  
   const max = Math.max(...allVals);
   const min = Math.min(...allVals);
-  const segW = CHART_W / (revenue.length - 1);
+  const range = max - min === 0 ? 1 : max - min; // Prevent division by zero
+  const segW = revenue.length > 1 ? CHART_W / (revenue.length - 1) : CHART_W;
 
   const renderLine = (points: number[], color: string) =>
     points.map((p, i) => {
       if (i === points.length - 1) return null;
       const x1 = i * segW;
-      const y1 = H - ((p - min) / (max - min)) * (H - 8) - 4;
+      const y1 = H - ((p - min) / range) * (H - 8) - 4;
       const x2 = (i + 1) * segW;
-      const y2 = H - ((points[i + 1] - min) / (max - min)) * (H - 8) - 4;
+      const y2 = H - ((points[i + 1] - min) / range) * (H - 8) - 4;
       const len = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
       const angle = Math.atan2(y2 - y1, x2 - x1) * (180 / Math.PI);
       return (
@@ -82,7 +89,7 @@ function DualSparkLine({ revenue, entries }: { revenue: number[]; entries: numbe
 
   return (
     <View>
-      <View style={{ height: H, width: CHART_W, position: 'relative' }}>
+      <View style={{ height: H, width: CHART_W, position: 'relative', overflow: 'hidden', backgroundColor: 'transparent' }}>
         {renderLine(revenue, C.teal)}
         {renderLine(entries, C.indigo)}
       </View>
@@ -189,9 +196,10 @@ export default function AnalyticsScreen() {
     let isMounted = true;
     const loadData = async () => {
       try {
+        setLoading(true);
         const [analyticsData, reportsData] = await Promise.all([
-          apiRequest<any>('/api/owner/analytics'),
-          apiRequest<any>('/api/owner/reports'),
+          apiRequest<any>(`/api/owner/analytics?period=${encodeURIComponent(period)}`),
+          apiRequest<any>(`/api/owner/reports?period=${encodeURIComponent(period)}`),
         ]);
         if (isMounted) {
           setAnalytics(analyticsData);
@@ -210,10 +218,14 @@ export default function AnalyticsScreen() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [period]);
 
   const revenueSeries = useMemo(() => (analytics?.series || []).map((item: any) => Number(item.revenue || 0)), [analytics]);
   const entrySeries = useMemo(() => (analytics?.series || []).map((item: any) => Number(item.transactions || 0)), [analytics]);
+  const totalRevenue = Number(analytics?.total_revenue ?? reports?.todays_revenue ?? reports?.revenue ?? 0);
+  const totalEntries = Number(analytics?.total_transactions ?? reports?.total_entries_today ?? reports?.entries ?? 0);
+  const peakHourLabel = reports?.peak_entry_time || 'N/A';
+  const hasAnalyticsData = (analytics?.series?.length || 0) > 0 || totalRevenue > 0 || totalEntries > 0;
   const fourWheelCount = Math.max(1, Math.round((reports?.paid || 0) * 0.64));
   const twoWheelCount = Math.max(1, Math.round((reports?.paid || 0) * 0.36));
 
@@ -278,24 +290,24 @@ export default function AnalyticsScreen() {
               <Text style={styles.summaryIcon}>💰</Text>
             </View>
             <Text style={styles.summaryLabel}>REVENUE</Text>
-            <Text style={styles.summaryValue}>{loading ? '—' : `₱${Number(analytics?.total_revenue || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</Text>
-            <Text style={styles.summarySub}>total collected</Text>
+            <Text style={styles.summaryValue}>{loading ? '—' : `₱${totalRevenue.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</Text>
+            <Text style={styles.summarySub}>{period === 'Daily' ? 'total collected' : `${period.toLowerCase()} total`}</Text>
           </View>
           <View style={[styles.summaryCard, { backgroundColor: C.cardNavy }]}>
             <View style={styles.summaryIconWrap}>
               <Text style={styles.summaryIcon}>🚘</Text>
             </View>
             <Text style={styles.summaryLabel}>ENTRIES</Text>
-            <Text style={styles.summaryValue}>{analytics?.total_transactions ?? 0}</Text>
-            <Text style={styles.summarySub}>vehicles logged</Text>
+            <Text style={styles.summaryValue}>{loading ? '—' : totalEntries}</Text>
+            <Text style={styles.summarySub}>{period === 'Daily' ? 'vehicles logged' : `${period.toLowerCase()} entries`}</Text>
           </View>
           <View style={[styles.summaryCard, { backgroundColor: C.cardOrange }]}>
             <View style={styles.summaryIconWrap}>
               <Text style={styles.summaryIcon}>⏱️</Text>
             </View>
             <Text style={styles.summaryLabel}>PEAK</Text>
-            <Text style={styles.summaryValue}>{reports?.peak_entry_time || 'N/A'}</Text>
-            <Text style={styles.summarySub}>busiest hour</Text>
+            <Text style={styles.summaryValue}>{loading ? '—' : peakHourLabel}</Text>
+            <Text style={styles.summarySub}>{period === 'Daily' ? 'busiest hour' : `${period.toLowerCase()} peak`}</Text>
           </View>
         </View>
 
@@ -307,13 +319,13 @@ export default function AnalyticsScreen() {
               <Text style={styles.trendBadgeText}>↑ 12% vs yesterday</Text>
             </View>
           </View>
-          {loading ? <ActivityIndicator size="small" color={C.teal} /> : <DualSparkLine revenue={revenueSeries} entries={entrySeries} />}
+          {loading ? <ActivityIndicator size="small" color={C.teal} /> : hasAnalyticsData ? <DualSparkLine revenue={revenueSeries} entries={entrySeries} /> : <Text style={styles.emptyState}>No data available for this period yet.</Text>}
         </View>
 
         {/* Weekly Occupancy */}
         <View style={styles.chartCard}>
           <Text style={styles.chartTitle}>Weekly occupancy</Text>
-          {loading ? <ActivityIndicator size="small" color={C.teal} /> : <OccupancyBars values={(analytics?.series || []).map((item: any) => Number(item.transactions || 0))} />}
+          {loading ? <ActivityIndicator size="small" color={C.teal} /> : hasAnalyticsData ? <OccupancyBars values={(analytics?.series || []).map((item: any) => Number(item.transactions || 0))} /> : <Text style={styles.emptyState}>No occupancy data available for this period yet.</Text>}
         </View>
 
         {/* Vehicle Type Split */}
@@ -427,6 +439,7 @@ const styles = StyleSheet.create({
   },
   trendBadgeText: { fontSize: 10, fontWeight: '700', color: C.teal },
   chartXLabel: { fontSize: 9, color: C.textMuted },
+  emptyState: { fontSize: 12, color: C.textSecondary, textAlign: 'center', paddingVertical: 12 },
 
   // Legend
   legendRow: { flexDirection: 'row', gap: 16, marginTop: 10 },

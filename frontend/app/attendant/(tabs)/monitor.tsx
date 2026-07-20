@@ -94,8 +94,12 @@ export default function MonitorScreen() {
   };
 
   const isOverstay = (status: string) => (status || '').toLowerCase().includes('overstay');
-  const occupiedSlots = slots.filter(s => s.occupied).length;
-  const availableSlots = Math.max(0, slots.length - occupiedSlots);
+  const totalSlots = slots.length > 0 ? slots.length : Math.max(1, summary.total_capacity || 100);
+  const occupiedSlots = slots.length > 0
+    ? slots.filter(s => s.occupied).length
+    : Math.min(summary.active_count || 0, totalSlots);
+  const availableSlots = Math.max(0, totalSlots - occupiedSlots);
+  const occupancyPercent = totalSlots > 0 ? Math.round((occupiedSlots / totalSlots) * 100) : 0;
 
   return (
     <View style={styles.container}>
@@ -123,16 +127,16 @@ export default function MonitorScreen() {
               <MaterialIcons name="directions-car" size={16} color={COLORS.navy} />
             </View>
             <ThemedText style={styles.statSmallLabel}>Occupied</ThemedText>
-            <ThemedText style={styles.statValue}>{summary.active_count}</ThemedText>
-            <ThemedText style={styles.statMeta}>out of {summary.total_capacity}</ThemedText>
+            <ThemedText style={styles.statValue}>{occupiedSlots}</ThemedText>
+            <ThemedText style={styles.statMeta}>out of {totalSlots} slots</ThemedText>
           </View>
           <View style={styles.statCard}>
             <View style={[styles.statIconContainer, { backgroundColor: COLORS.tealLight }]}>
               <MaterialIcons name="local-parking" size={16} color={COLORS.teal} />
             </View>
             <ThemedText style={styles.statSmallLabel}>Occupancy</ThemedText>
-            <ThemedText style={styles.statValue}>{summary.occupancy_percent}%</ThemedText>
-            <ThemedText style={styles.statMeta}>{summary.total_capacity} available</ThemedText>
+            <ThemedText style={styles.statValue}>{occupancyPercent}%</ThemedText>
+            <ThemedText style={styles.statMeta}>{availableSlots} available</ThemedText>
           </View>
           <View style={styles.statCard}>
             <View style={[styles.statIconContainer, { backgroundColor: COLORS.amberChip }]}>
@@ -142,7 +146,7 @@ export default function MonitorScreen() {
             <ThemedText style={[styles.statValue, { color: getTrafficColor(summary.traffic_level) }]}>
               {summary.traffic_level === 'Low' ? 'Pass' : summary.traffic_level}
             </ThemedText>
-            <ThemedText style={styles.statMeta}>{summary.occupancy_percent}% occupied</ThemedText>
+            <ThemedText style={styles.statMeta}>{occupancyPercent}% occupied</ThemedText>
           </View>
         </View>
       </View>
