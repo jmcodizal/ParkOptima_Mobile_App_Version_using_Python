@@ -9,10 +9,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   Switch,
-  Alert,
   Image,
   Keyboard,
 } from 'react-native';
+import { notifyError } from '@/lib/feedback';
 import { CameraView, Camera } from 'expo-camera';
 
 import { ThemedText } from '@/components/themed-text';
@@ -20,27 +20,6 @@ import { ThemedView } from '@/components/themed-view';
 import TopBar from '@/components/ui/top-bar';
 import { apiRequest, getApiBaseUrl } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-
-// ML Kit OCR import with fallback
-let MLKit: any = null;
-try {
-  MLKit = require('react-native-mlkit-ocr').default;
-} catch {
-  console.warn('react-native-mlkit-ocr not available – OCR will be simulated');
-}
-
-// Helper: Extract plate number from OCR text
-const extractPlateFromText = (text: string): string | null => {
-  const cleaned = text.toUpperCase().replace(/[^A-Z0-9]/g, '');
-  const anyMatch = cleaned.match(/([A-Z0-9]{3,})/);
-  return anyMatch ? anyMatch[1] : null;
-};
-
-// Helper: Format plate number
-const formatPlateNumber = (text: string): string => {
-  return text.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 20);
-};
 
 const COLORS = {
   navy: '#1D3D8A',
@@ -87,7 +66,7 @@ export default function ScanExitScreen() {
 
   const handleSubmitExit = async () => {
     if (!plateNumber.trim()) {
-      Alert.alert('Validation error', 'Please enter a plate number.');
+      notifyError('Please enter a plate number.', 'Validation error');
       return;
     }
 
@@ -108,7 +87,7 @@ export default function ScanExitScreen() {
       setBrandModel('');
       setVehicleColor('');
     } catch (error) {
-      Alert.alert('Exit failed', error instanceof Error ? error.message : 'Unable to start parking session.');
+      notifyError(error instanceof Error ? error.message : 'Unable to start parking session.', 'Exit failed');
     } finally {
       setLoading(false);
     }
@@ -158,11 +137,10 @@ export default function ScanExitScreen() {
       const result = await Camera.requestCameraPermissionsAsync();
       setPermissionStatus(result.status);
       if (result.status !== 'granted') {
-        Alert.alert('Permission required', 'Camera access is required to scan a license plate.');
+        notifyError('Camera access is required to scan a license plate.', 'Permission required');
         return;
       }
     }
-
     setIsCameraVisible(true);
     setCameraReady(false);
     setMessage('Live camera ready. Tap capture to scan.');
@@ -170,7 +148,7 @@ export default function ScanExitScreen() {
 
   const handleCaptureAndRecognize = async () => {
     if (!cameraRef.current) {
-      Alert.alert('Error', 'Camera not ready. Please try again.');
+      notifyError('Camera not ready. Please try again.', 'Error');
       return;
     }
 
@@ -184,69 +162,59 @@ export default function ScanExitScreen() {
       });
 
       if (!photo?.uri) {
-        Alert.alert('Error', 'Failed to capture image.');
+        notifyError('Failed to capture image.', 'Error');
         return;
       }
 
       setCapturedImage(photo.uri);
 
-      if (MLKit) {
-        // Run OCR on the captured image using Google ML Kit
-        const blocks = await MLKit.detectFromUri(photo.uri);
+      setMessage('Sending photo to backend for plate recognition...');
 
-        // Combine all recognized text from blocks
-        const recognizedText = blocks.map((b: any) => b.text).join(' ').trim();
-        setOcrResult(recognizedText || '(no text detected)');
-        setMessage(`OCR Result: ${recognizedText}`);
+      try {
+        const apiBase = getApiBaseUrl();
 
-        // Try to extract plate number from OCR text
-        const plate = extractPlateFromText(recognizedText);
-        if (plate) {
-          setPlateNumber(plate);
-          setMessage(`Recognized plate: ${plate}`);
-        } else if (recognizedText) {
-          const formatted = formatPlateNumber(recognizedText.replace(/\s/g, ''));
-          setPlateNumber(formatted);
-          setMessage(`Formatted plate: ${formatted}`);
-        } else {
-          setMessage('No text detected. Please try again or enter manually.');
-        }
-      } else {
-        // ML Kit not available – show the image and let user type plate manually
-        setOcrResult('(ML Kit not available in Expo Go – using backend fallback)');
-        setMessage('Falling back to backend vision API...');
-        
-        // Try backend fallback
-        try {
-          const formData = new FormData();
-          formData.append('file', {
-            uri: photo.uri,
-            name: 'plate.jpg',
-            type: 'image/jpeg',
-          } as any);
+        // Read image file as base64
+        const response = await fetch(photo.uri);
+        const blob = await response.blob();
+        const reader = new FileReader();
 
-          const apiBase = getApiBaseUrl();
-          const response = await fetch(`${apiBase}/api/vision/detect`, {
-            method: 'POST',
-            body: formData,
-            headers: { 'Content-Type': 'multipart/form-data' },
-          });
+        reader.onload = async () => {
+          const base64 = (reader.result as string).split(',')[1] || reader.result;
 
-          const data = await response.json();
-          if (data?.plate) {
-            setPlateNumber(data.plate);
-            setMessage(`Recognized plate: ${data.plate}`);
-          } else {
-            setMessage('No plate detected. Please enter manually.');
+          try {
+            const detectResponse = await fetch(`${apiBase}/api/vision/detect`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ image_base64: base64, filename: 'plate.jpg' }),
+            });
+
+            const data = await detectResponse.json();
+            const recognizedPlate = data?.plate?.toString().trim();
+            if (recognizedPlate) {
+              setPlateNumber(recognizedPlate);
+              setOcrResult(data?.text?.join?.(' ') || '');
+              setMessage(`Recognized plate: ${recognizedPlate}`);
+            } else {
+              setOcrResult('');
+              setMessage(data?.message || 'No plate detected. Please enter manually.');
+            }
+          } catch (error) {
+            setMessage('Backend not available. Please enter plate manually.');
+          } finally {
+            setIsScanning(false);
+            setLoading(false);
           }
-        } catch (error) {
-          setMessage('Backend not available. Please enter plate manually.');
-        }
+        };
+
+        reader.readAsDataURL(blob);
+      } catch (error) {
+        setMessage('Backend not available. Please enter plate manually.');
+        setIsScanning(false);
+        setLoading(false);
       }
     } catch (error: any) {
       console.warn('OCR Error:', error);
-      Alert.alert('Scan Error', 'Failed to recognize plate. Please try again or enter manually.');
-    } finally {
+      notifyError('Failed to recognize plate. Please try again or enter manually.', 'Scan Error');
       setIsScanning(false);
       setLoading(false);
     }
@@ -271,222 +239,226 @@ export default function ScanExitScreen() {
             contentInsetAdjustmentBehavior="automatic"
             keyboardDismissMode="interactive"
           >
-          <View style={styles.pageHeader}>
-            <View style={styles.headerTextWrap}>
-              <ThemedText type="subtitle" style={styles.pageTitle}>
-                Scan Exit
-              </ThemedText>
-              <ThemedText style={styles.pageSubtitle}>
-                Scan or enter a license plate to log vehicle exit
-              </ThemedText>
-            </View>
-          </View>
-          {message ? (
-            <View style={styles.feedbackBanner}>
-              <Text style={styles.feedbackText}>{message}</Text>
-            </View>
-          ) : null}
-
-          <View style={styles.tabRow}>
-            {(['Camera Scan', 'Manual Exit'] as TabMode[]).map(tab => (
-              <TouchableOpacity
-                key={tab}
-                style={[styles.tab, activeTab === tab && styles.tabActive]}
-                onPress={() => setActiveTab(tab)}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-                  {tab}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <View style={styles.vehicleRow}>
-            <TouchableOpacity
-              style={[styles.vehicleCard, selectedVehicle === 'Motor' && styles.vehicleCardActive]}
-              onPress={() => setSelectedVehicle('Motor')}
-              activeOpacity={0.85}
-            >
-              <View style={[styles.vehicleIconWrap, { backgroundColor: COLORS.motorBg }]}> 
-                <View style={styles.motorIcon}>
-                  <View style={styles.motorBody} />
-                  <View style={styles.motorWheel} />
-                  <View style={[styles.motorWheel, { marginLeft: 6 }]} />
-                </View>
+            <View style={styles.pageHeader}>
+              <View style={styles.headerTextWrap}>
+                <ThemedText type="subtitle" style={styles.pageTitle}>
+                  Scan Exit
+                </ThemedText>
+                <ThemedText style={styles.pageSubtitle}>
+                  Scan or enter a license plate to log vehicle exit
+                </ThemedText>
               </View>
-              <Text style={styles.vehicleLabel}>Motor</Text>
-              <Text style={styles.vehiclePrice}>₱5.00 FLAT RATE</Text>
-            </TouchableOpacity>
+            </View>
+            {message ? (
+              <View style={styles.feedbackBanner}>
+                <Text style={styles.feedbackText}>{message}</Text>
+              </View>
+            ) : null}
 
-            <TouchableOpacity
-              style={[styles.vehicleCard, selectedVehicle === '4 Wheels' && styles.vehicleCardActive]}
-              onPress={() => setSelectedVehicle('4 Wheels')}
-              activeOpacity={0.85}
-            >
-              <View style={[styles.vehicleIconWrap, { backgroundColor: COLORS.wheelsBg }]}> 
-                <View style={styles.carIcon}>
-                  <View style={styles.carRoof} />
-                  <View style={styles.carBody} />
-                  <View style={styles.carWheelsRow}>
-                    <View style={styles.carWheel} />
-                    <View style={styles.carWheel} />
+            <View style={styles.tabRow}>
+              {(['Camera Scan', 'Manual Exit'] as TabMode[]).map(tab => (
+                <TouchableOpacity
+                  key={tab}
+                  style={[styles.tab, activeTab === tab && styles.tabActive]}
+                  onPress={() => setActiveTab(tab)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
+                    {tab}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={styles.vehicleRow}>
+              <TouchableOpacity
+                style={[styles.vehicleCard, selectedVehicle === 'Motor' && styles.vehicleCardActive]}
+                onPress={() => setSelectedVehicle('Motor')}
+                activeOpacity={0.85}
+              >
+                <View style={[styles.vehicleIconWrap, { backgroundColor: COLORS.motorBg }]}>
+                  <View style={styles.motorIcon}>
+                    <View style={styles.motorBody} />
+                    <View style={styles.motorWheel} />
+                    <View style={[styles.motorWheel, { marginLeft: 6 }]} />
                   </View>
                 </View>
-              </View>
-              <Text style={styles.vehicleLabel}>4 Wheels</Text>
-              <Text style={styles.vehiclePrice}>₱20.00 FLAT RATE</Text>
-            </TouchableOpacity>
-          </View>
+                <Text style={styles.vehicleLabel}>Motor</Text>
+                <Text style={styles.vehiclePrice}>₱5.00 FLAT RATE</Text>
+              </TouchableOpacity>
 
-          {activeTab === 'Camera Scan' ? (
-            <>
-              <View style={styles.viewfinder}>
-                {isCameraVisible && permissionStatus === 'granted' ? (
-                  <>
-                    <CameraView
-                      ref={cameraRef}
-                      style={StyleSheet.absoluteFill}
-                      facing="back"
-                      onCameraReady={() => setCameraReady(true)}
-                    />
-                    <View style={styles.scannerOverlay}>
+              <TouchableOpacity
+                style={[styles.vehicleCard, selectedVehicle === '4 Wheels' && styles.vehicleCardActive]}
+                onPress={() => setSelectedVehicle('4 Wheels')}
+                activeOpacity={0.85}
+              >
+                <View style={[styles.vehicleIconWrap, { backgroundColor: COLORS.wheelsBg }]}>
+                  <View style={styles.carIcon}>
+                    <View style={styles.carRoof} />
+                    <View style={styles.carBody} />
+                    <View style={styles.carWheelsRow}>
+                      <View style={styles.carWheel} />
+                      <View style={styles.carWheel} />
+                    </View>
+                  </View>
+                </View>
+                <Text style={styles.vehicleLabel}>4 Wheels</Text>
+                <Text style={styles.vehiclePrice}>₱20.00 FLAT RATE</Text>
+              </TouchableOpacity>
+            </View>
+
+            {activeTab === 'Camera Scan' ? (
+              <>
+                <View style={styles.viewfinder}>
+                  {isCameraVisible && permissionStatus === 'granted' ? (
+                    <>
+                      <CameraView
+                        ref={cameraRef}
+                        style={StyleSheet.absoluteFill}
+                        facing="back"
+                        onCameraReady={() => setCameraReady(true)}
+                      />
+                      <View style={styles.scannerOverlay}>
+                        <View style={styles.cornerTL} />
+                        <View style={styles.cornerTR} />
+                        <View style={styles.cornerBL} />
+                        <View style={styles.cornerBR} />
+                        <Text style={styles.cameraReadyText}>
+                          {cameraReady ? 'SCANNING LIVE' : 'STARTING CAMERA...'}
+                        </Text>
+                      </View>
+                    </>
+                  ) : capturedImage ? (
+                    <Image source={{ uri: capturedImage }} style={styles.previewImage} />
+                  ) : (
+                    <>
                       <View style={styles.cornerTL} />
                       <View style={styles.cornerTR} />
                       <View style={styles.cornerBL} />
                       <View style={styles.cornerBR} />
-                      <Text style={styles.cameraReadyText}>{cameraReady ? 'SCANNING LIVE' : 'STARTING CAMERA...'}</Text>
-                    </View>
-                  </>
-                ) : capturedImage ? (
-                  <Image source={{ uri: capturedImage }} style={styles.previewImage} />
-                ) : (
-                  <>
-                    <View style={styles.cornerTL} />
-                    <View style={styles.cornerTR} />
-                    <View style={styles.cornerBL} />
-                    <View style={styles.cornerBR} />
-                    <Text style={styles.cameraReadyText}>CAMERA READY</Text>
-                  </>
-                )}
-              </View>
+                      <Text style={styles.cameraReadyText}>CAMERA READY</Text>
+                    </>
+                  )}
+                </View>
 
-              <View style={styles.alignRow}>
-                <Switch
-                  value={alignToggle}
-                  onValueChange={setAlignToggle}
-                  trackColor={{ false: COLORS.border, true: COLORS.teal }}
-                  thumbColor={COLORS.white}
-                  style={styles.switch}
-                />
-                <Text style={styles.alignLabel}>Align license plate within the frame</Text>
-              </View>
+                <View style={styles.alignRow}>
+                  <Switch
+                    value={alignToggle}
+                    onValueChange={setAlignToggle}
+                    trackColor={{ false: COLORS.border, true: COLORS.teal }}
+                    thumbColor={COLORS.white}
+                    style={styles.switch}
+                  />
+                  <Text style={styles.alignLabel}>Align license plate within the frame</Text>
+                </View>
 
-              <TouchableOpacity
-                style={[styles.activateBtn, loading && styles.btnDisabled]}
-                activeOpacity={0.85}
-                onPress={isCameraVisible ? handleCaptureAndRecognize : handleOpenCamera}
-                disabled={loading}
-              >
-                <Text style={styles.activateBtnIcon}>📷</Text>
-                <Text style={styles.activateBtnText}>{loading ? 'Recognizing...' : isCameraVisible ? 'Capture & Scan' : 'Activate Camera'}</Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.activateBtn, loading && styles.btnDisabled]}
+                  activeOpacity={0.85}
+                  onPress={isCameraVisible ? handleCaptureAndRecognize : handleOpenCamera}
+                  disabled={loading}
+                >
+                  <Text style={styles.activateBtnIcon}>📷</Text>
+                  <Text style={styles.activateBtnText}>
+                    {loading ? 'Recognizing...' : isCameraVisible ? 'Capture & Scan' : 'Activate Camera'}
+                  </Text>
+                </TouchableOpacity>
 
+                <View style={styles.manualCard}>
+                  <Text style={styles.fieldLabel}>PLATE NUMBER</Text>
+                  <View style={styles.inputRow}>
+                    <TextInput
+                      style={styles.input}
+                      value={plateNumber}
+                      onChangeText={setPlateNumber}
+                      placeholder="Recognized plate will appear here"
+                      placeholderTextColor={COLORS.textMuted}
+                      autoCapitalize="characters"
+                      onFocus={() => scrollInputIntoView('plate')}
+                    />
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.submitBtn, loading && styles.btnDisabled]}
+                    activeOpacity={0.85}
+                    onPress={handleSubmitExit}
+                    disabled={loading || !plateNumber.trim()}
+                  >
+                    <Text style={styles.submitText}>{loading ? 'Saving...' : 'Record Exit'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : (
               <View style={styles.manualCard}>
                 <Text style={styles.fieldLabel}>PLATE NUMBER</Text>
                 <View style={styles.inputRow}>
+                  <View style={styles.inputIconWrap}>
+                    <View style={styles.idIcon}>
+                      <View style={styles.idStripe} />
+                      <View style={styles.idDot} />
+                    </View>
+                  </View>
                   <TextInput
                     style={styles.input}
                     value={plateNumber}
                     onChangeText={setPlateNumber}
-                    placeholder="Recognized plate will appear here"
+                    placeholder="Enter plate number"
                     placeholderTextColor={COLORS.textMuted}
                     autoCapitalize="characters"
                     onFocus={() => scrollInputIntoView('plate')}
                   />
                 </View>
+
+                <Text style={styles.fieldLabel}>VEHICLE DETAILS</Text>
+                <View style={styles.inputRow}>
+                  <View style={styles.inputIconWrap}>
+                    <View style={styles.idIcon}>
+                      <View style={styles.idStripe} />
+                      <View style={styles.idDot} />
+                    </View>
+                  </View>
+                  <TextInput
+                    style={styles.input}
+                    value={brandModel}
+                    onChangeText={setBrandModel}
+                    placeholder="Enter brand model"
+                    placeholderTextColor={COLORS.textMuted}
+                    autoCapitalize="characters"
+                    onFocus={() => scrollInputIntoView('brand')}
+                  />
+                </View>
+
+                <View style={styles.inputRow}>
+                  <View style={styles.inputIconWrap}>
+                    <View style={styles.idIcon}>
+                      <View style={styles.idStripe} />
+                      <View style={styles.idDot} />
+                    </View>
+                  </View>
+                  <TextInput
+                    style={styles.input}
+                    value={vehicleColor}
+                    onChangeText={setVehicleColor}
+                    placeholder="Enter vehicle color"
+                    placeholderTextColor={COLORS.textMuted}
+                    autoCapitalize="characters"
+                    onFocus={() => scrollInputIntoView('color')}
+                  />
+                </View>
+
                 <TouchableOpacity
                   style={[styles.submitBtn, loading && styles.btnDisabled]}
                   activeOpacity={0.85}
                   onPress={handleSubmitExit}
-                  disabled={loading || !plateNumber.trim()}
+                  disabled={loading}
                 >
-                  <Text style={styles.submitText}>{loading ? 'Saving...' : 'Record Exit'}</Text>
+                  <Text style={styles.submitText}>{loading ? 'Saving...' : 'Submit'}</Text>
                 </TouchableOpacity>
               </View>
-            </>
-            ) : (
-            <View style={styles.manualCard}>
-              <Text style={styles.fieldLabel}>PLATE NUMBER</Text>
-              <View style={styles.inputRow}>
-                <View style={styles.inputIconWrap}>
-                  <View style={styles.idIcon}>
-                    <View style={styles.idStripe} />
-                    <View style={styles.idDot} />
-                  </View>
-                </View>
-                <TextInput
-                  style={styles.input}
-                  value={plateNumber}
-                  onChangeText={setPlateNumber}
-                  placeholder="Enter plate number"
-                  placeholderTextColor={COLORS.textMuted}
-                  autoCapitalize="characters"
-                  onFocus={() => scrollInputIntoView('plate')}
-                />
-              </View>
-
-              <Text style={styles.fieldLabel}>VEHICLE DETAILS</Text>
-              <View style={styles.inputRow}>
-                <View style={styles.inputIconWrap}>
-                  <View style={styles.idIcon}>
-                    <View style={styles.idStripe} />
-                    <View style={styles.idDot} />
-                  </View>
-                </View>
-                <TextInput
-                  style={styles.input}
-                  value={brandModel}
-                  onChangeText={setBrandModel}
-                  placeholder="Enter brand model"
-                  placeholderTextColor={COLORS.textMuted}
-                  autoCapitalize="characters"
-                  onFocus={() => scrollInputIntoView('brand')}
-                />
-              </View>
-
-              <View style={styles.inputRow}>
-                <View style={styles.inputIconWrap}>
-                  <View style={styles.idIcon}>
-                    <View style={styles.idStripe} />
-                    <View style={styles.idDot} />
-                  </View>
-                </View>
-                <TextInput
-                  style={styles.input}
-                  value={vehicleColor}
-                  onChangeText={setVehicleColor}
-                  placeholder="Enter vehicle color"
-                  placeholderTextColor={COLORS.textMuted}
-                  autoCapitalize="characters"
-                  onFocus={() => scrollInputIntoView('color')}
-                />
-              </View>
-
-              <TouchableOpacity
-                style={[styles.submitBtn, loading && styles.btnDisabled]}
-                activeOpacity={0.85}
-                onPress={handleSubmitExit}
-                disabled={loading}
-              >
-                <Text style={styles.submitText}>{loading ? 'Saving...' : 'Submit'}</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </ScrollView>
-        {/* Camera is available from the central tab button; remove per-screen FAB */}
-      </KeyboardAvoidingView>
-    </View>
+            )}
+          </ScrollView>
+          {/* Camera is available from the central tab button; remove per-screen FAB */}
+        </KeyboardAvoidingView>
+      </View>
     </ThemedView>
   );
 }

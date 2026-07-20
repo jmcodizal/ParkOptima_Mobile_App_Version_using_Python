@@ -1,3 +1,4 @@
+import base64
 import os
 import tempfile
 import uuid
@@ -511,7 +512,7 @@ async def scan_out(payload: dict[str, Any]) -> Dict[str, Any]:
 
 
 @app.post("/api/vision/detect")
-async def vision_detect(file: UploadFile = File(...)) -> Dict[str, Any]:
+async def vision_detect(request: Request) -> Dict[str, Any]:
     if cv2 is None or easyocr is None or YOLO is None:
         return {
             "status": "unavailable",
@@ -520,11 +521,36 @@ async def vision_detect(file: UploadFile = File(...)) -> Dict[str, Any]:
             "text": [],
         }
 
-    contents = await file.read()
+    contents = None
+    filename = "upload.jpg"
+    
+    # Try to parse as JSON with base64 first
+    try:
+        json_data = await request.json()
+        if json_data.get("image_base64"):
+            try:
+                contents = base64.b64decode(json_data["image_base64"])
+                filename = json_data.get("filename", "plate.jpg")
+            except Exception:
+                pass
+    except Exception:
+        pass
+    
+    # If no JSON base64, try multipart form data
+    if not contents:
+        try:
+            form_data = await request.form()
+            uploaded_file = form_data.get("image") or form_data.get("file")
+            if uploaded_file:
+                contents = await uploaded_file.read()
+                filename = uploaded_file.filename or "upload.jpg"
+        except Exception:
+            pass
+    
     if not contents:
         raise HTTPException(status_code=400, detail="No image uploaded")
 
-    suffix = Path(file.filename or "upload.jpg").suffix or ".jpg"
+    suffix = Path(filename).suffix or ".jpg"
     with tempfile.NamedTemporaryFile("wb", suffix=suffix, delete=False) as handle:
         handle.write(contents)
         temp_path = handle.name

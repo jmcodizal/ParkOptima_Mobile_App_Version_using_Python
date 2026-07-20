@@ -14,7 +14,7 @@ def complete_parking_session(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     if not session_id:
         session = fetch_one(
-            "SELECT ps.id, ps.vehicle_id, ps.owner_user_id, ps.fee, ps.currency, ps.status FROM parking_sessions ps JOIN vehicles v ON v.id = ps.vehicle_id WHERE v.plate = %s AND ps.status = 'active' ORDER BY ps.start_time DESC LIMIT 1",
+            "SELECT ps.id, ps.vehicle_id, ps.owner_user_id, ps.fee, ps.currency, ps.status FROM parking_sessions ps LEFT JOIN vehicles v ON v.id = ps.vehicle_id WHERE (v.plate = %s OR ps.notes = 'Manual entry' AND ps.status = 'active') AND ps.status = 'active' ORDER BY ps.start_time DESC LIMIT 1",
             [plate],
         )
         if not session:

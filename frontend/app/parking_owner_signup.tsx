@@ -10,13 +10,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import LoginFormContainer from './login_form_container';
 import { useRouter } from 'expo-router';
 import { apiRequest } from '../lib/api';
+import { notifyError, notifySuccess } from '@/lib/feedback';
 
 // ParkOptima color palette
 const C = {
@@ -46,12 +46,12 @@ export default function ParkingOwnerSignupScreen() {
 
   const handleSignup = async () => {
     if (!firstName.trim() || !lastName.trim() || !email.trim() || !password.trim()) {
-      Alert.alert('Validation Error', 'Please fill in all required fields');
+      notifyError('Please fill in all required fields', 'Validation Error');
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert('Validation Error', 'Password must be at least 6 characters');
+      notifyError('Password must be at least 6 characters', 'Validation Error');
       return;
     }
 
@@ -69,7 +69,7 @@ export default function ParkingOwnerSignupScreen() {
         }),
       });
 
-      Alert.alert('Success', 'Signup completed successfully! Redirecting to login...', [
+      notifySuccess('Signup completed successfully! Redirecting to login...', 'Success', [
         {
           text: 'OK',
           onPress: () => {
@@ -78,9 +78,9 @@ export default function ParkingOwnerSignupScreen() {
         },
       ]);
     } catch (error) {
-      Alert.alert(
+      notifyError(
+        error instanceof Error ? error.message : 'An error occurred during signup. Please try again.',
         'Signup Error',
-        error instanceof Error ? error.message : 'An error occurred during signup. Please try again.'
       );
     } finally {
       setLoading(false);

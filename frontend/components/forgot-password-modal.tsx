@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   Pressable,
   StyleSheet,
@@ -11,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { notifyError, notifySuccess } from '@/lib/feedback';
 
 type ForgotPasswordModalProps = {
   visible: boolean;
@@ -51,22 +51,22 @@ export default function ForgotPasswordModal({ visible, role, onClose, onSubmit }
 
   const handleSubmit = async () => {
     if (!identifier.trim() || !currentPassword || !newPassword) {
-      Alert.alert('Validation Error', 'All fields are required.');
+      notifyError('Validation Error', 'All fields are required.');
       return;
     }
 
     if (newPassword.length < 6) {
-      Alert.alert('Validation Error', 'New password must be at least 6 characters.');
+      notifyError('Validation Error', 'New password must be at least 6 characters.');
       return;
     }
 
     setLoading(true);
     try {
       await onSubmit(identifier.trim(), currentPassword, newPassword);
-      Alert.alert('Success', 'Your password was updated successfully.');
+      notifySuccess('Success', 'Your password was updated successfully.');
       onClose();
     } catch (error) {
-      Alert.alert('Password reset failed', error instanceof Error ? error.message : 'Unable to reset password.');
+      notifyError('Password reset failed', error instanceof Error ? error.message : 'Unable to reset password.');
     } finally {
       setLoading(false);
     }

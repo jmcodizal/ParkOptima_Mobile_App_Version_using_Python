@@ -9,7 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Alert,
+  ActivityIndicator,
   Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/lib/auth';
 import { apiRequest } from '../lib/api';
+import { notifyError } from '@/lib/feedback';
 import ForgotPasswordModal from '../components/forgot-password-modal';
 import { clearRememberedCredentials, loadRememberedCredentials, saveRememberedCredentials } from '../lib/remember-me';
 import LoginFormContainer from './login_form_container';
@@ -98,7 +99,7 @@ export default function LoginScreen() {
 
   const handleSignIn = async () => {
     if (!email.trim() || !password) {
-      Alert.alert('Validation Error', 'Email and password are required.');
+      notifyError('Email and password are required.', 'Validation Error');
       return;
     }
 
@@ -117,7 +118,7 @@ export default function LoginScreen() {
       await signIn(response.user_id, response.role);
       router.replace('/owner/overview');
     } catch (error) {
-      Alert.alert('Login Error', error instanceof Error ? error.message : 'Unable to log in.');
+      notifyError(error instanceof Error ? error.message : 'Unable to log in.', 'Login Error');
     } finally {
       setLoading(false);
     }

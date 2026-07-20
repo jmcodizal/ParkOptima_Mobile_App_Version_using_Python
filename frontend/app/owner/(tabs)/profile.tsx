@@ -7,7 +7,6 @@ import {
   ScrollView,
   SafeAreaView,
   TextInput,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Keyboard,
@@ -17,6 +16,7 @@ import { useRouter } from 'expo-router';
 
 import { Colors } from '@/constants/theme';
 import { apiRequest } from '@/lib/api';
+import { confirmLogout, notifyError, notifySuccess } from '@/lib/feedback';
 import { useAuth } from '@/lib/auth';
 
 type ProfileData = {
@@ -56,6 +56,10 @@ export default function AccountSettingsScreen() {
   const router = useRouter();
   const { signOut } = useAuth();
   const [fullName, setFullName] = useState('Parking Owner');
+
+  const handleBellPress = () => {
+    router.push('/owner/transaction_log');
+  };
   const [email, setEmail] = useState('owner@parkoptima.com');
   const [phone, setPhone] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
@@ -121,30 +125,20 @@ export default function AccountSettingsScreen() {
   }, []);
 
   const handleLogout = () => {
-    console.log('Logout button pressed');
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
-      { text: 'Cancel', onPress: () => console.log('Logout cancelled'), style: 'cancel' },
-      {
-        text: 'Logout',
-        onPress: () => {
-          console.log('Confirming logout, clearing auth state...');
-          signOut()
-            .catch((error) => console.error('Sign out failed', error))
-            .finally(() => {
-              setTimeout(() => {
-                console.log('Navigating to modal_login after sign out');
-                router.replace('/modal_login');
-              }, 50);
-            });
-        },
-        style: 'destructive',
-      },
-    ]);
+    confirmLogout(() => {
+      signOut()
+        .catch((error) => console.error('Sign out failed', error))
+        .finally(() => {
+          setTimeout(() => {
+            router.replace('/modal_login');
+          }, 50);
+        });
+    });
   };
 
   const handleSaveChanges = async () => {
     if (newPassword && newPassword !== confirmPassword) {
-      Alert.alert('Passwords do not match');
+      notifyError('Passwords do not match', 'Password error');
       return;
     }
 
@@ -160,12 +154,12 @@ export default function AccountSettingsScreen() {
           new_password: newPassword,
         }),
       });
-      Alert.alert('Profile updated', 'Your profile and settings were saved.');
+      notifySuccess('Your profile and settings were saved.', 'Profile updated');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (error) {
-      Alert.alert('Unable to save profile', error instanceof Error ? error.message : 'Please try again.');
+      notifyError(error instanceof Error ? error.message : 'Please try again.', 'Unable to save profile');
     }
   };
 
@@ -179,7 +173,7 @@ export default function AccountSettingsScreen() {
                       </View>
                       <Text style={styles.navBrand}>ParkOptima</Text>
                     </View>
-                    <TouchableOpacity style={styles.bellWrap}>
+                    <TouchableOpacity style={styles.bellWrap} onPress={handleBellPress}>
                       <Text style={styles.bellIcon}>🔔</Text>
                       <View style={styles.bellDot} />
                     </TouchableOpacity>

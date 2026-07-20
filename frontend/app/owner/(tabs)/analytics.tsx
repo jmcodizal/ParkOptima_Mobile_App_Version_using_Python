@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 
 import { Colors } from '@/constants/theme';
 import { apiRequest } from '../../../lib/api';
@@ -59,7 +60,7 @@ function DualSparkLine({ revenue, entries }: { revenue: number[]; entries: numbe
   
   const max = Math.max(...allVals);
   const min = Math.min(...allVals);
-  const range = max - min === 0 ? 1 : max - min; // Prevent division by zero
+  const range = max - min === 0 ? 1 : max - min;
   const segW = revenue.length > 1 ? CHART_W / (revenue.length - 1) : CHART_W;
 
   const renderLine = (points: number[], color: string) =>
@@ -187,6 +188,7 @@ const PERIOD_COLORS: Record<Period, string> = {
 };
 
 export default function AnalyticsScreen() {
+  const router = useRouter();
   const [period, setPeriod] = useState<Period>('Daily');
   const [analytics, setAnalytics] = useState<any>(null);
   const [reports, setReports] = useState<any>(null);
@@ -246,7 +248,7 @@ export default function AnalyticsScreen() {
                   </View>
                   <Text style={styles.navBrand}>ParkOptima</Text>
                 </View>
-                <TouchableOpacity style={styles.bellWrap}>
+                <TouchableOpacity style={styles.bellWrap} onPress={() => router.push('/owner/transaction_log')}>
                   <Text style={styles.bellIcon}>🔔</Text>
                   <View style={styles.bellDot} />
                 </TouchableOpacity>

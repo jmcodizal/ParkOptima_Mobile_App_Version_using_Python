@@ -10,6 +10,7 @@ import {
   TextInput,
   ActivityIndicator,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Colors } from '@/constants/theme';
@@ -74,10 +75,20 @@ const iconStyles = StyleSheet.create({
 });
 
 export default function TransactionHistory() {
+  const router = useRouter();
   const [activeFilter, setActiveFilter] = useState<FilterTab>('All');
   const [search, setSearch] = useState('');
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const handleBellPress = () => {
+    router.push('/owner/overview');
+  };
+
+  const handleResetFilters = () => {
+    setSearch('');
+    setActiveFilter('All');
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -177,7 +188,7 @@ export default function TransactionHistory() {
                 </View>
                 <Text style={styles.navBrand}>ParkOptima</Text>
               </View>
-              <TouchableOpacity style={styles.bellWrap}>
+              <TouchableOpacity style={styles.bellWrap} onPress={handleBellPress}>
                 <Text style={styles.bellIcon}>🔔</Text>
                 <View style={styles.bellDot} />
               </TouchableOpacity>
@@ -205,7 +216,7 @@ export default function TransactionHistory() {
               placeholderTextColor={C.textMuted}
             />
           </View>
-          <TouchableOpacity style={styles.filterBtn}>
+          <TouchableOpacity style={styles.filterBtn} onPress={handleResetFilters}>
             <Ionicons name="swap-vertical" size={16} color={C.textSecondary} />
           </TouchableOpacity>
         </View>

@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { Colors } from '@/constants/theme';
 import { apiRequest } from '../../../lib/api';
+import { useRouter } from 'expo-router';
 
 const C = {
   navy: '#1E3A8A',
@@ -115,9 +116,18 @@ const donut = StyleSheet.create({
 });
 
 export default function OwnerDashboard() {
+  const router = useRouter();
   const [chartTab, setChartTab] = useState<'Day' | 'Week' | 'Month'>('Day');
   const [dashboard, setDashboard] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  const handleBellPress = () => {
+    router.push('/owner/transaction_log');
+  };
+
+  const handleWarningPress = () => {
+    router.push('/owner/transaction_log');
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -168,7 +178,7 @@ export default function OwnerDashboard() {
           </View>
           <Text style={styles.navBrand}>ParkOptima</Text>
         </View>
-        <TouchableOpacity style={styles.bellWrap}>
+        <TouchableOpacity style={styles.bellWrap} onPress={handleBellPress}>
           <Text style={styles.bellIcon}>🔔</Text>
           <View style={styles.bellDot} />
         </TouchableOpacity>
@@ -186,7 +196,7 @@ export default function OwnerDashboard() {
         showsVerticalScrollIndicator={false}>
 
         {/* Capacity Warning Banner */}
-        <TouchableOpacity style={styles.warningBanner} activeOpacity={0.8}>
+        <TouchableOpacity style={styles.warningBanner} activeOpacity={0.8} onPress={handleWarningPress}>
           <View style={styles.warningIconWrap}>
             <Text style={styles.warningIcon}>⚠️</Text>
           </View>
@@ -300,7 +310,7 @@ export default function OwnerDashboard() {
               <Text style={styles.sectionIcon}>🧾</Text>
               <Text style={styles.sectionTitle}>Recent transactions</Text>
             </View>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/owner/transaction_log')}>
               <Text style={styles.viewAllText}>View all</Text>
             </TouchableOpacity>
           </View>

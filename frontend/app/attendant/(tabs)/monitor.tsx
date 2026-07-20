@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, TextInput, View, Pressable, TouchableOpacity, Text } from 'react-native';
+import { ScrollView, StyleSheet, TextInput, View, Pressable, TouchableOpacity, Text, Share } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { Colors } from '@/constants/theme';
@@ -9,6 +9,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import TopBar from '@/components/ui/top-bar';
 import { apiRequest } from '@/lib/api';
+import { notifyInfo } from '@/lib/feedback';
 
 const COLORS = {
   navy: '#1E3A8A',
@@ -44,6 +45,7 @@ export default function MonitorScreen() {
   const [sessions, setSessions] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [slots, setSlots] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const loadSummary = async () => {
@@ -100,6 +102,50 @@ export default function MonitorScreen() {
     : Math.min(summary.active_count || 0, totalSlots);
   const availableSlots = Math.max(0, totalSlots - occupiedSlots);
   const occupancyPercent = totalSlots > 0 ? Math.round((occupiedSlots / totalSlots) * 100) : 0;
+
+  const filteredSessions = sessions.filter(s => {
+    const query = searchQuery.toLowerCase();
+    if (!query) return true;
+    const text = `${s.vehicle_id ?? s.id ?? ''} ${s.owner_name ?? ''} ${s.slot_number ?? s.slot ?? ''} ${s.status ?? ''}`.toLowerCase();
+    return text.includes(query);
+  });
+
+  const filteredTransactions = transactions.filter(tx => {
+    const query = searchQuery.toLowerCase();
+    if (!query) return true;
+    const text = `${tx.transaction_uuid ?? tx.id ?? ''} ${tx.vehicle_plate ?? ''} ${tx.owner_name ?? ''} ${tx.status ?? ''}`.toLowerCase();
+    return text.includes(query);
+  });
+
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    notifyInfo('Search cleared.', 'Filters reset');
+  };
+
+  const handleExportCsv = async () => {
+    if (filteredTransactions.length === 0) {
+      notifyInfo('There are no transactions available to export.', 'No data');
+      return;
+    }
+
+    const rows = [
+      ['Transaction ID', 'Plate', 'Owner', 'Status', 'Amount', 'Created At'].join(','),
+      ...filteredTransactions.map(tx => [
+        tx.transaction_uuid ?? tx.id ?? '',
+        tx.vehicle_plate ?? '',
+        tx.owner_name ?? '',
+        tx.status ?? '',
+        tx.amount ?? '',
+        tx.created_at ? new Date(tx.created_at).toLocaleString() : '',
+      ].map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
+    ].join('\n');
+
+    try {
+      await Share.share({ message: rows, title: 'ParkOptima Export' });
+    } catch (error) {
+      console.warn('Export cancelled', error);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -160,15 +206,17 @@ export default function MonitorScreen() {
               style={styles.searchInput}
               placeholder="Plate, owner, or ID..."
               placeholderTextColor={COLORS.placeholder}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
             />
           </View>
-          <Pressable style={styles.filterButton}>
+          <Pressable style={styles.filterButton} onPress={handleResetFilters}>
             <MaterialIcons name="filter-list" size={15} color={COLORS.textPrimary} style={{ marginRight: 4 }} />
             <ThemedText style={styles.filterText}>Filter</ThemedText>
           </Pressable>
         </View>
 
-        <Pressable style={styles.csvButton}>
+        <Pressable style={styles.csvButton} onPress={handleExportCsv}>
           <MaterialIcons name="file-download" size={17} color={COLORS.white} style={{ marginRight: 8 }} />
           <ThemedText style={styles.csvText}>Export CSV</ThemedText>
         </Pressable>
@@ -210,8 +258,8 @@ export default function MonitorScreen() {
             </View>
             <ThemedText style={styles.listCardSubtitle}>CURRENTLY PARKED</ThemedText>
 
-            {sessions.map((s, i) => (
-              <View key={s.session_uuid ?? s.id} style={[styles.vehicleRow, i === sessions.length - 1 && { borderBottomWidth: 0 }]}>
+            {filteredSessions.map((s, i) => (
+              <View key={s.session_uuid ?? s.id} style={[styles.vehicleRow, i === filteredSessions.length - 1 && { borderBottomWidth: 0 }]}>
                 <View style={styles.vehicleIconWrap}>
                   <MaterialIcons name="directions-car" size={17} color={COLORS.blue} />
                 </View>
@@ -249,7 +297,7 @@ export default function MonitorScreen() {
             <ThemedText style={styles.tableHeaderText}>STATUS</ThemedText>
           </View>
 
-          {transactions.map(tx => (
+          {filteredTransactions.map(tx => (
             <View key={tx.id} style={styles.tableRow}>
               <ThemedText style={styles.tableCell}>{tx.transaction_uuid ?? tx.id}</ThemedText>
               <ThemedText style={styles.tableCell}>{(tx.vehicle_plate || '')}</ThemedText>

@@ -11,12 +11,12 @@ import {
   Platform,
   ScrollView,
   useWindowDimensions,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { apiRequest } from '../lib/api';
+import { notifyError } from '@/lib/feedback';
 import ForgotPasswordModal from '../components/forgot-password-modal';
 import { clearRememberedCredentials, loadRememberedCredentials, saveRememberedCredentials } from '../lib/remember-me';
 import { useAuth } from '@/lib/auth';
@@ -62,7 +62,7 @@ export default function VehicleOwnerLogin() {
   const handleSignIn = async () => {
     const normalizedPlate = plate.trim().toUpperCase();
     if (!normalizedPlate || pin.length !== 4) {
-      Alert.alert('Validation Error', 'Plate and 4-digit PIN are required.');
+      notifyError('Plate and 4-digit PIN are required.', 'Validation Error');
       return;
     }
 
@@ -81,7 +81,7 @@ export default function VehicleOwnerLogin() {
       await signIn(response.user_id, 'vehicle_owner');
       router.replace('/');
     } catch (error) {
-      Alert.alert('Login Error', error instanceof Error ? error.message : 'Unable to log in.');
+      notifyError(error instanceof Error ? error.message : 'Unable to log in.', 'Login Error');
     } finally {
       setLoading(false);
     }

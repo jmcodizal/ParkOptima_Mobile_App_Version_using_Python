@@ -7,7 +7,6 @@ import {
   ScrollView,
   StyleSheet,
   StatusBar,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Keyboard,
@@ -19,6 +18,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import TopBar from '@/components/ui/top-bar';
 import { apiRequest } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { notifyError } from "@/lib/feedback";
 
 // ─── Color Palette ────────────────────────────────────────────────────────────
 const C = {
@@ -247,7 +247,7 @@ export default function MyProfileScreen() {
       setSuccessMsg("Profile updated successfully");
       setTimeout(() => setSuccessMsg(""), 3000);
     } catch (error) {
-      Alert.alert('Save error', error instanceof Error ? error.message : 'Unable to update profile');
+      notifyError(error instanceof Error ? error.message : 'Unable to update profile', 'Save error');
     } finally {
       setLoading(false);
     }
@@ -269,7 +269,7 @@ export default function MyProfileScreen() {
       setNewPw("");
       setTimeout(() => setSuccessMsg(""), 3000);
     } catch (error) {
-      Alert.alert('Password error', error instanceof Error ? error.message : 'Unable to update password');
+      notifyError(error instanceof Error ? error.message : 'Unable to update password', 'Password error');
     } finally {
       setLoading(false);
     }

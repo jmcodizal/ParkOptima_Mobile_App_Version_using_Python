@@ -6,8 +6,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   StatusBar,
-  Alert,
+  Share,
 } from 'react-native';
+import { notifyError, notifyInfo } from '@/lib/feedback';
 import { useRouter } from 'expo-router';
 import { Colors } from '@/constants/theme';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -212,12 +213,44 @@ const txs = await apiRequest<any[]>('/api/payments');
         ),
       );
     } catch (error) {
-      Alert.alert('Payment error', error instanceof Error ? error.message : 'Unable to mark payment paid');
+      notifyError(error instanceof Error ? error.message : 'Unable to mark payment paid', 'Payment error');
     }
   };
 
   const handleSkip = (transactionId: number) => {
     setPayments(prev => prev.filter(p => p.transactionId !== transactionId));
+  };
+
+  const handleExportCsv = async () => {
+    if (payments.length === 0) {
+      notifyInfo('There are no payment records to export.', 'No payments');
+      return;
+    }
+
+    const header = ['ID', 'Name', 'Plate', 'Owner', 'Status', 'Amount', 'Entry', 'Exit'];
+    const csvRows = [header.join(',')];
+
+    payments.forEach(payment => {
+      const row = [
+        payment.id,
+        payment.name,
+        payment.plate,
+        payment.ownerName,
+        payment.status,
+        payment.amount,
+        payment.entry,
+        payment.exit,
+      ]
+        .map(value => `"${String(value).replace(/"/g, '""')}"`)
+        .join(',');
+      csvRows.push(row);
+    });
+
+    try {
+      await Share.share({ message: csvRows.join('\n'), title: 'ParkOptima Payments Export' });
+    } catch (error) {
+      console.warn('Export cancelled', error);
+    }
   };
 
   return (
@@ -245,7 +278,7 @@ const txs = await apiRequest<any[]>('/api/payments');
           </View>
         </View>
 
-        <TouchableOpacity style={styles.exportBtn} activeOpacity={0.85}>
+        <TouchableOpacity style={styles.exportBtn} activeOpacity={0.85} onPress={handleExportCsv}>
           <Ionicons name="download-outline" size={15} color="#fff" style={{ marginRight: 8 }} />
           <ThemedText style={styles.exportText}>Export CSV</ThemedText>
         </TouchableOpacity>
