@@ -95,8 +95,9 @@ CREATE TABLE IF NOT EXISTS owner_settings (
   id INT AUTO_INCREMENT PRIMARY KEY,
   owner_user_id INT NOT NULL,
   system_option VARCHAR(100) DEFAULT 'Parking Owner',
-  motor_fee DECIMAL(10,2) DEFAULT 5.00,
+  motor_fee DECIMAL(10,2) DEFAULT 3.00,
   four_wheeler_fee DECIMAL(10,2) DEFAULT 30.00,
+  parking_capacity INT DEFAULT 100,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uk_owner_settings_user (owner_user_id),
   CONSTRAINT fk_owner_settings_user FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -118,8 +119,8 @@ INSERT IGNORE INTO users (id, role, first_name, last_name, email, phone, passwor
   (2, 'parking_attendant', 'Ana', 'Attendant', 'attendant@parkoptima.com', '09170000002', NULL, NULL, 1),
   (3, 'vehicle_owner', 'John', 'Doe', 'jdoe@parkoptima.com', '09170000003', NULL, NULL, 1);
 
-INSERT IGNORE INTO owner_settings (owner_user_id, system_option, motor_fee, four_wheeler_fee) VALUES
-  (1, 'Parking Owner', 3.00, 30.00);
+INSERT IGNORE INTO owner_settings (owner_user_id, system_option, motor_fee, four_wheeler_fee, parking_capacity) VALUES
+  (1, 'Parking Owner', 3.00, 30.00, 100);
 
 INSERT IGNORE INTO vehicles (id, owner_id, plate, make, model, color, type, registered_at, pin_hash, pin_salt, is_active) VALUES
   (1, 3, 'ABC-123', 'Toyota', 'Vios', 'Silver', 'Car', NOW(), 'seed', 'seed', 1),

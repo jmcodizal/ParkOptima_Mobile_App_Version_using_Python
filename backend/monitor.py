@@ -5,8 +5,10 @@ from .db import fetch_all, fetch_one
 
 def get_monitor_summary() -> Dict[str, Any]:
     summary = fetch_one("SELECT COUNT(*) AS active_count FROM parking_sessions WHERE status = 'active'")
+    settings = fetch_one("SELECT COALESCE(parking_capacity, 0) AS total_capacity FROM owner_settings ORDER BY id LIMIT 1")
     active_count = int((summary or {}).get("active_count") or 0)
-    total_capacity = 100
+    configured_capacity = int((settings or {}).get("total_capacity") or 0)
+    total_capacity = max(configured_capacity, active_count, 1)
     occupancy_percent = 0 if total_capacity == 0 else min(100, round((active_count / total_capacity) * 100))
     traffic_level = "High" if occupancy_percent >= 80 else "Medium" if occupancy_percent >= 50 else "Low"
     return {

@@ -225,14 +225,14 @@ async def signup(payload: SignupRequest) -> Dict[str, Any]:
 
         if role == "parking_owner":
             cursor.execute(
-                "INSERT INTO owner_settings (owner_user_id, system_option, motor_fee, four_wheeler_fee) VALUES (%s, %s, %s, %s)",
-                [user_id, "Parking Owner", 3.00, 30.00],
+                "INSERT INTO owner_settings (owner_user_id) VALUES (%s)",
+                [user_id],
             )
 
         if role == "vehicle_owner":
             cursor.execute(
-                "INSERT INTO wallets (user_id, balance, currency) VALUES (%s, %s, %s)",
-                [user_id, 0.00, "USD"],
+                "INSERT INTO wallets (user_id) VALUES (%s)",
+                [user_id],
             )
             pin_salt = ""
             pin_hash = hash_password(payload.pin, pin_salt)
@@ -337,7 +337,7 @@ async def vehicle_register(payload: VehicleRegisterRequest) -> Dict[str, Any]:
             ["vehicle_owner", first_name, last_name, None, payload.phone or None],
         )
         user_id = int(cursor.lastrowid)
-        cursor.execute("INSERT INTO wallets (user_id, balance, currency) VALUES (%s, %s, %s)", [user_id, 0.00, "USD"])
+        cursor.execute("INSERT INTO wallets (user_id) VALUES (%s)", [user_id])
         pin_salt = ""
         pin_hash = hash_password(payload.pin, pin_salt)
         cursor.execute(

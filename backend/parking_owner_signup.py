@@ -36,8 +36,8 @@ def register_parking_owner(payload: Dict[str, Any]) -> Dict[str, Any]:
         )
         user_id = int(cursor.lastrowid)
         cursor.execute(
-            "INSERT INTO owner_settings (owner_user_id, system_option, motor_fee, four_wheeler_fee) VALUES (%s, %s, %s, %s)",
-            [user_id, "Parking Owner", 3.00, 30.00],
+            "INSERT INTO owner_settings (owner_user_id) VALUES (%s)",
+            [user_id],
         )
         connection.commit()
         return {"message": "Parking owner signup successful", "user_id": user_id}

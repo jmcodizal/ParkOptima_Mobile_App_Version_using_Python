@@ -14,7 +14,7 @@ def complete_parking_session(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     if not session_id:
         session = fetch_one(
-            "SELECT ps.id, ps.vehicle_id, ps.owner_user_id, ps.fee, ps.status FROM parking_sessions ps JOIN vehicles v ON v.id = ps.vehicle_id WHERE v.plate = %s AND ps.status = 'active' ORDER BY ps.start_time DESC LIMIT 1",
+            "SELECT ps.id, ps.vehicle_id, ps.owner_user_id, ps.fee, ps.currency, ps.status FROM parking_sessions ps JOIN vehicles v ON v.id = ps.vehicle_id WHERE v.plate = %s AND ps.status = 'active' ORDER BY ps.start_time DESC LIMIT 1",
             [plate],
         )
         if not session:
@@ -22,7 +22,7 @@ def complete_parking_session(payload: Dict[str, Any]) -> Dict[str, Any]:
         session_id = session["id"]
     else:
         session = fetch_one(
-            "SELECT id, vehicle_id, owner_user_id, fee, status FROM parking_sessions WHERE id = %s LIMIT 1",
+            "SELECT id, vehicle_id, owner_user_id, fee, currency, status FROM parking_sessions WHERE id = %s LIMIT 1",
             [session_id],
         )
         if not session:
@@ -30,6 +30,11 @@ def complete_parking_session(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     if str(session.get("status") or "") != "active":
         return {"message": "Session already completed", "session_id": int(session_id)}
+
+    amount = payload.get("amount")
+    if amount is None:
+        amount = session.get("fee")
+    currency = payload.get("currency") or session.get("currency") or "PHP"
 
     connection = get_db_connection()
     try:
@@ -45,8 +50,8 @@ def complete_parking_session(payload: Dict[str, Any]) -> Dict[str, Any]:
                 int(session_id),
                 int(session["owner_user_id"]),
                 payload.get("attendant_id"),
-                float(payload.get("amount") or 0.0),
-                payload.get("currency") or "PHP",
+                float(amount or 0.0),
+                currency,
                 payload.get("method") or "cash",
                 payload.get("status") or "pending",
                 payload.get("reference") or f"ref-{session_id}",

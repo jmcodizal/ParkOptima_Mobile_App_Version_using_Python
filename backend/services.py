@@ -88,13 +88,25 @@ def build_owner_reports() -> Dict[str, Any]:
     peak_hour_row = fetch_one(
         "SELECT HOUR(start_time) AS hour, COUNT(*) AS total FROM parking_sessions WHERE DATE(start_time) = CURDATE() GROUP BY HOUR(start_time) ORDER BY total DESC LIMIT 1"
     )
+    reliability_row = fetch_one(
+        "SELECT COUNT(*) AS total, SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed FROM transactions"
+    )
+    returning_row = fetch_one(
+        "SELECT COUNT(DISTINCT user_id) AS total FROM transactions WHERE status = 'completed' AND created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)"
+    )
+
+    total_transactions = int((reliability_row or {}).get("total") or 0)
+    completed_transactions = int((reliability_row or {}).get("completed") or 0)
+    system_reliability = round((completed_transactions / total_transactions) * 100) if total_transactions > 0 else 0
+    returning_visitors = int((returning_row or {}).get("total") or 0)
+
     return {
         "total_entries_today": int((today_row or {}).get("total_entries") or 0),
         "todays_revenue": float((today_row or {}).get("revenue") or 0.0),
-        "system_reliability": 99,
+        "system_reliability": system_reliability,
         "date_range": datetime.now().strftime("%a %b %d %Y"),
         "generated_at": datetime.now().strftime("%I:%M:%S %p"),
-        "returning": "No data yet",
+        "returning": f"{returning_visitors} returning visitors" if returning_visitors else "No returning visitors",
         "paid": int((paid_row or {}).get("total") or 0),
         "unpaid": int((unpaid_row or {}).get("total") or 0),
         "peak_load": f"{int((peak_hour_row or {}).get('total') or 0)} entries" if peak_hour_row else "N/A",
