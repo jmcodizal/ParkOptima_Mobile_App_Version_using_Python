@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { apiRequest } from '@/lib/api';
+import { ValidationRules } from '@/lib/validation';
 
 const COLORS = {
   navy: '#1A2E4A',
@@ -193,8 +194,17 @@ export default function RegisterVehicle() {
       return;
     }
 
-    if (!/^[0-9]{4}$/.test(pin)) {
-      setError('PIN must be exactly 4 digits.');
+    // Validate PIN format
+    const pinValidation = ValidationRules.pin.validate(pin);
+    if (!pinValidation.valid) {
+      setError(pinValidation.message);
+      return;
+    }
+
+    // Validate confirm PIN
+    const confirmPinValidation = ValidationRules.pin.validate(confirmPin);
+    if (!confirmPinValidation.valid) {
+      setError('Confirm ' + confirmPinValidation.message);
       return;
     }
 

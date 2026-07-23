@@ -132,7 +132,7 @@ INSERT IGNORE INTO parking_sessions (id, session_uuid, vehicle_id, owner_user_id
 
 INSERT IGNORE INTO transactions (id, transaction_uuid, session_id, user_id, attendant_id, amount, currency, method, status, reference, created_at) VALUES
   (1, 'txn-001', 1, 3, 2, 20.00, 'PHP', 'cash', 'completed', 'REF-001', DATE_SUB(NOW(), INTERVAL 2 HOUR)),
-  (2, 'txn-002', 2, 3, 2, 30.00, 'PHP', 'card', 'pending', 'REF-002', DATE_SUB(NOW(), INTERVAL 1 DAY));
+  (2, 'txn-002', 2, 3, 2, 5.00, 'PHP', 'card', 'pending', 'REF-002', DATE_SUB(NOW(), INTERVAL 1 DAY));
 
 INSERT IGNORE INTO audit_logs (id, user_id, role, action, details, created_at) VALUES
   (1, 1, 'parking_owner', 'Login', 'Owner logged in', NOW()),

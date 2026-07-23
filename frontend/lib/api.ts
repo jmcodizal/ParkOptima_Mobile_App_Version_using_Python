@@ -39,7 +39,7 @@ const getExpoHostFromConstants = (): string | null => {
   return resolveHost(hostUri);
 };
 
-const DEFAULT_API_PORT = process.env.EXPO_PUBLIC_API_PORT || process.env.API_PORT || '8000';
+const DEFAULT_API_PORT = process.env.EXPO_PUBLIC_API_PORT || process.env.API_PORT || '8001';
 
 const DEFAULT_API_BASE = (() => {
   if (Platform.OS === 'web') {
@@ -53,12 +53,16 @@ const DEFAULT_API_BASE = (() => {
     return `http://${machineIp}:${DEFAULT_API_PORT}`;
   }
 
+  if (Platform.OS === 'android') {
+    return `http://10.0.2.2:${DEFAULT_API_PORT}`;
+  }
+
   const expoHost = getExpoHostFromConstants();
   if (expoHost) {
     return `http://${expoHost}:${DEFAULT_API_PORT}`;
   }
 
-  return Platform.OS === 'android' ? `http://10.0.2.2:${DEFAULT_API_PORT}` : `http://127.0.0.1:${DEFAULT_API_PORT}`;
+  return `http://127.0.0.1:${DEFAULT_API_PORT}`;
 })();
 
 const isExpoTunnelHost = (value: string) => {
@@ -79,8 +83,13 @@ export function getApiBaseUrl() {
   return DEFAULT_API_BASE.replace(/\/$/, '');
 }
 
+const ANDROID_EMULATOR_LOCALHOST = '10.0.2.2';
+
+const buildUrl = (baseUrl: string, path: string) => `${baseUrl.replace(/\/$/, '')}${path}`;
+
 export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const url = `${getApiBaseUrl()}${path}`;
+  const baseUrl = getApiBaseUrl();
+  const url = buildUrl(baseUrl, path);
   const config: AxiosRequestConfig = {
     url,
     method: (init.method || 'GET').toUpperCase() as AxiosRequestConfig['method'],
@@ -93,12 +102,38 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
     config.data = init.body;
   }
 
+  const attemptRequest = async (requestUrl: string) => {
+    return api.request<T>({
+      ...config,
+      url: requestUrl,
+    });
+  };
+
   try {
-    const response = await api.request<T>(config);
+    const response = await attemptRequest(url);
     return response.data as T;
   } catch (error) {
     const axiosError = error as AxiosError<any>;
     const detail = axiosError.response?.data?.detail || axiosError.response?.data?.message || axiosError.message || 'Request failed';
+
+    const isAndroid = Platform.OS === 'android';
+    const isFallbackAllowed = isAndroid && !url.includes(ANDROID_EMULATOR_LOCALHOST);
+    const isNetworkError = !axiosError.response;
+
+    if (isFallbackAllowed && isNetworkError) {
+      const fallbackBase = `http://${ANDROID_EMULATOR_LOCALHOST}:${DEFAULT_API_PORT}`;
+      const fallbackUrl = buildUrl(fallbackBase, path);
+      console.warn('[apiRequest] network error, retrying via Android emulator loopback', url, '->', fallbackUrl, detail);
+      try {
+        const fallbackResponse = await attemptRequest(fallbackUrl);
+        return fallbackResponse.data as T;
+      } catch (fallbackError) {
+        const fallbackAxiosError = fallbackError as AxiosError<any>;
+        const fallbackDetail = fallbackAxiosError.response?.data?.detail || fallbackAxiosError.response?.data?.message || fallbackAxiosError.message || 'Request failed';
+        console.error('[apiRequest] fallback network error', fallbackUrl, fallbackDetail);
+      }
+    }
+
     console.error('[apiRequest] network error', url, detail);
     throw new Error(typeof detail === 'string' ? detail : 'Request failed');
   }

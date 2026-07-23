@@ -17,6 +17,8 @@ import LoginFormContainer from './login_form_container';
 import { useRouter } from 'expo-router';
 import { apiRequest } from '../lib/api';
 import { notifyError, notifySuccess } from '@/lib/feedback';
+import { ValidationRules, isValidEmail, isValidPassword, isValidPhone } from '../lib/validation';
+import PasswordRequirementsList from '../components/password-requirements-list';
 
 // ParkOptima color palette
 const C = {
@@ -42,19 +44,42 @@ export default function AttendantSignupScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const router = useRouter();
 
   const handleSignup = async () => {
-    if (!firstName.trim() || !lastName.trim() || !email.trim() || !password.trim()) {
-      notifyError('Please fill in all required fields', 'Validation Error');
+    const newErrors: Record<string, string> = {};
+
+    if (!firstName.trim()) {
+      newErrors.firstName = 'First name is required';
+    }
+
+    if (!lastName.trim()) {
+      newErrors.lastName = 'Last name is required';
+    }
+
+    const emailValidation = ValidationRules.email.validate(email);
+    if (!emailValidation.valid) {
+      newErrors.email = emailValidation.message;
+    }
+
+    if (phone.trim() && !isValidPhone(phone)) {
+      newErrors.phone = 'Phone number must be 11 digits starting with 09';
+    }
+
+    const passwordValidation = ValidationRules.password.validate(password);
+    if (!passwordValidation.valid) {
+      newErrors.password = passwordValidation.errors.join(', ');
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      const errorMessages = Object.values(newErrors).join('\n');
+      notifyError(errorMessages, 'Validation Error');
       return;
     }
 
-    if (password.length < 6) {
-      notifyError('Password must be at least 6 characters', 'Validation Error');
-      return;
-    }
-
+    setErrors({});
     setLoading(true);
     try {
       const response = await apiRequest('/api/attendant/signup', {
@@ -160,42 +185,51 @@ export default function AttendantSignupScreen() {
 
               {/* Email */}
               <Text style={styles.label}>EMAIL</Text>
-              <View style={styles.inputWrapper}>
+              <View style={[styles.inputWrapper, errors.email && styles.inputWrapperError]}>
                 <View style={styles.inputIconCircle}>
                   <Ionicons name="mail" size={13} color="#fff" />
                 </View>
                 <TextInput
                   style={styles.input}
-                  placeholder="Email address"
+                  placeholder="attendant@gmail.com"
                   placeholderTextColor={C.placeholder}
                   value={email}
-                  onChangeText={setEmail}
+                  onChangeText={(text) => {
+                    setEmail(text);
+                    if (errors.email) setErrors({ ...errors, email: '' });
+                  }}
                   autoCapitalize="none"
                   keyboardType="email-address"
                   editable={!loading}
                 />
               </View>
+              {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
 
               {/* Phone */}
               <Text style={styles.label}>PHONE</Text>
-              <View style={styles.inputWrapper}>
+              <View style={[styles.inputWrapper, errors.phone && styles.inputWrapperError]}>
                 <View style={styles.inputIconCircle}>
                   <Ionicons name="call" size={13} color="#fff" />
                 </View>
                 <TextInput
                   style={styles.input}
-                  placeholder="Phone number"
+                  placeholder="09XXXXXXXXX (11 digits)"
                   placeholderTextColor={C.placeholder}
                   value={phone}
-                  onChangeText={setPhone}
+                  onChangeText={(text) => {
+                    setPhone(text);
+                    if (errors.phone) setErrors({ ...errors, phone: '' });
+                  }}
                   keyboardType="phone-pad"
+                  maxLength={11}
                   editable={!loading}
                 />
               </View>
+              {errors.phone && <Text style={styles.errorText}>{errors.phone}</Text>}
 
               {/* Password */}
               <Text style={styles.label}>PASSWORD</Text>
-              <View style={styles.inputWrapper}>
+              <View style={[styles.inputWrapper, errors.password && styles.inputWrapperError]}>
                 <View style={styles.inputIconCircle}>
                   <Ionicons name="lock-closed" size={13} color="#fff" />
                 </View>
@@ -204,7 +238,10 @@ export default function AttendantSignupScreen() {
                   placeholder="Password"
                   placeholderTextColor={C.placeholder}
                   value={password}
-                  onChangeText={setPassword}
+                  onChangeText={(text) => {
+                    setPassword(text);
+                    if (errors.password) setErrors({ ...errors, password: '' });
+                  }}
                   secureTextEntry={!showPassword}
                   editable={!loading}
                 />
@@ -216,6 +253,8 @@ export default function AttendantSignupScreen() {
                   />
                 </TouchableOpacity>
               </View>
+              {password && <PasswordRequirementsList password={password} />}
+              {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
 
               {/* Sign up button */}
               <TouchableOpacity style={[styles.signUpBtn, loading && styles.signUpBtnDisabled]} onPress={handleSignup} disabled={loading}>
@@ -429,5 +468,16 @@ const styles = StyleSheet.create({
     color: C.teal,
     fontSize: 12,
     fontWeight: '700',
+  },
+  inputWrapperError: {
+    borderColor: C.red,
+  },
+  errorText: {
+    color: C.red,
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: -8,
+    marginBottom: 12,
+    alignSelf: 'flex-start',
   },
 });

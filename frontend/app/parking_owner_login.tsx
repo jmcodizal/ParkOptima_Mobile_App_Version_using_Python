@@ -21,6 +21,7 @@ import { notifyError } from '@/lib/feedback';
 import ForgotPasswordModal from '../components/forgot-password-modal';
 import { clearRememberedCredentials, loadRememberedCredentials, saveRememberedCredentials } from '../lib/remember-me';
 import LoginFormContainer from './login_form_container';
+import { ValidationRules } from '../lib/validation';
 
 const C = {
   navy: '#1E3A8A',
@@ -100,6 +101,13 @@ export default function LoginScreen() {
   const handleSignIn = async () => {
     if (!email.trim() || !password) {
       notifyError('Email and password are required.', 'Validation Error');
+      return;
+    }
+
+    // Validate email format
+    const emailValidation = ValidationRules.email.validate(email);
+    if (!emailValidation.valid) {
+      notifyError(emailValidation.message, 'Invalid Email');
       return;
     }
 
