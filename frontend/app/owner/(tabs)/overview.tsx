@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   View,
   Text,
   TouchableOpacity,
@@ -15,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import { apiRequest } from '../../../lib/api';
 import { useRouter } from 'expo-router';
+import { useAuth } from '@/lib/auth';
 
 const C = {
   navy: '#1E3A8A',
@@ -117,16 +119,52 @@ const donut = StyleSheet.create({
 
 export default function OwnerDashboard() {
   const router = useRouter();
+  const { userId, role: authRole } = useAuth();
   const [chartTab, setChartTab] = useState<'Day' | 'Week' | 'Month'>('Day');
   const [dashboard, setDashboard] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [previewNotification, setPreviewNotification] = useState<any | null>(null);
+
+  const getNotificationPreview = async () => {
+    if (!userId) {
+      return;
+    }
+
+    try {
+      const data = await apiRequest<any>(`/api/notifications?owner_id=${userId}&limit=1`);
+      const latest = (data?.notifications || [])[0] || null;
+      setPreviewNotification(latest);
+    } catch (error) {
+      console.warn('Failed to load notification preview', error);
+    }
+  };
 
   const handleBellPress = () => {
-    router.push('/owner/transaction_log');
+    if (previewNotification) {
+      Alert.alert(
+        previewNotification.title || 'Notification preview',
+        previewNotification.message || 'You have a new notification.',
+        [
+          {
+            text: 'View details',
+            onPress: () =>
+              router.push({
+                pathname: '/owner/notifications',
+                params: { focus: previewNotification.id?.toString() },
+              } as any),
+          },
+          { text: 'Close', style: 'cancel' },
+        ],
+        { cancelable: true }
+      );
+      return;
+    }
+
+    router.push({ pathname: '/owner/notifications' } as any);
   };
 
   const handleWarningPress = () => {
-    router.push('/owner/transaction_log');
+    router.push({ pathname: '/owner/notifications' } as any);
   };
 
   useEffect(() => {
@@ -151,6 +189,10 @@ export default function OwnerDashboard() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    getNotificationPreview();
+  }, [userId]);
 
   const chartPoints = useMemo(() => {
     const hourlyFlow = dashboard?.hourly_flow || [];

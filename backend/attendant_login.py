@@ -19,10 +19,10 @@ def authenticate_attendant(identifier: str, password: str) -> Dict[str, Any]:
 
     # Allow login with either email or phone number from the UI
     row = fetch_one(
-        "SELECT id, role, first_name, last_name, email, phone, password_hash, password_salt FROM users WHERE (LOWER(email) = %s OR phone = %s) AND role = 'parking_attendant' AND is_active = 1 LIMIT 1",
+        "SELECT id, role, first_name, last_name, email, phone, password_hash FROM users WHERE (LOWER(email) = %s OR phone = %s) AND role = 'parking_attendant' AND is_active = 1 LIMIT 1",
         [normalized_identifier, identifier],
     )
-    if not row or not verify_password(password, row.get("password_hash"), row.get("password_salt")):
+    if not row or not verify_password(password, row.get("password_hash")):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     return {

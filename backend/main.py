@@ -33,6 +33,17 @@ try:
     from .parking_owner_login import authenticate_parking_owner
     from .parking_owner_signup import register_parking_owner
     from .check_balance import get_vehicle_balance
+    from .notifications import (
+        create_notification,
+        get_owner_notifications,
+        mark_notification_as_read,
+        mark_all_notifications_as_read,
+        get_unread_notification_count,
+        check_parking_lot_full,
+        get_parking_lot_occupancy,
+        detect_unusual_events,
+        delete_notification,
+    )
 except ImportError:
     from db import execute, fetch_all, fetch_one, get_db_connection, hash_password, verify_password
     from services import build_owner_analytics, build_owner_dashboard, build_owner_reports
@@ -49,6 +60,17 @@ except ImportError:
     from parking_owner_login import authenticate_parking_owner
     from parking_owner_signup import register_parking_owner
     from check_balance import get_vehicle_balance
+    from notifications import (
+        create_notification,
+        get_owner_notifications,
+        mark_notification_as_read,
+        mark_all_notifications_as_read,
+        get_unread_notification_count,
+        check_parking_lot_full,
+        get_parking_lot_occupancy,
+        detect_unusual_events,
+        delete_notification,
+    )
 
 try:
     import cv2  # type: ignore
@@ -147,10 +169,10 @@ async def login(payload: LoginRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail="Email and password are required")
 
     row = fetch_one(
-        "SELECT id, role, password_hash, password_salt FROM users WHERE LOWER(email) = %s AND is_active = 1 LIMIT 1",
+        "SELECT id, role, password_hash FROM users WHERE LOWER(email) = %s AND is_active = 1 LIMIT 1",
         [email],
     )
-    if not row or not verify_password(password, row.get("password_hash"), row.get("password_salt")):
+    if not row or not verify_password(password, row.get("password_hash")):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     return {
@@ -213,7 +235,7 @@ async def signup(payload: SignupRequest) -> Dict[str, Any]:
     try:
         cursor = connection.cursor()
         cursor.execute(
-            "INSERT INTO users (role, first_name, last_name, email, phone, password_hash, password_salt, is_active) VALUES (%s, %s, %s, %s, %s, %s, %s, 1)",
+            "INSERT INTO users (role, first_name, last_name, email, phone, password_hash, is_active) VALUES (%s, %s, %s, %s, %s, %s, 1)",
             [
                 role,
                 payload.first_name or None,
@@ -221,7 +243,6 @@ async def signup(payload: SignupRequest) -> Dict[str, Any]:
                 payload.email,
                 payload.phone or None,
                 password_hash,
-                salt,
             ],
         )
         user_id = int(cursor.lastrowid)
@@ -237,11 +258,10 @@ async def signup(payload: SignupRequest) -> Dict[str, Any]:
                 "INSERT INTO wallets (user_id) VALUES (%s)",
                 [user_id],
             )
-            pin_salt = ""
-            pin_hash = hash_password(payload.pin, pin_salt)
+            pin_hash = hash_password(payload.pin)
             cursor.execute(
-                "INSERT INTO vehicles (owner_id, plate, type, registered_at, pin_hash, pin_salt, is_active) VALUES (%s, %s, %s, NOW(), %s, %s, 1)",
-                [user_id, payload.plate.upper(), "Car", pin_hash, pin_salt],
+                "INSERT INTO vehicles (owner_id, plate, type, registered_at, pin_hash, is_active) VALUES (%s, %s, %s, NOW(), %s, 1)",
+                [user_id, payload.plate.upper(), "Car", pin_hash],
             )
 
         connection.commit()
@@ -261,12 +281,12 @@ def reset_user_password(identifier: str, current_password: str, new_password: st
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
 
     row = fetch_one(
-        "SELECT id, password_hash, password_salt FROM users WHERE (LOWER(email) = %s OR phone = %s) AND is_active = 1 LIMIT 1",
+        "SELECT id, password_hash FROM users WHERE (LOWER(email) = %s OR phone = %s) AND is_active = 1 LIMIT 1",
         [normalized_identifier, normalized_identifier],
     )
     if not row:
         raise HTTPException(status_code=404, detail="User not found")
-    if not verify_password(str(current_password), row.get("password_hash"), row.get("password_salt")):
+    if not verify_password(str(current_password), row.get("password_hash")):
         raise HTTPException(status_code=401, detail="Current password is invalid")
 
     connection = get_db_connection()
@@ -275,8 +295,8 @@ def reset_user_password(identifier: str, current_password: str, new_password: st
         salt = ""
         password_hash = hash_password(str(new_password), salt)
         cursor.execute(
-            "UPDATE users SET password_hash = %s, password_salt = %s WHERE id = %s",
-            [password_hash, salt, int(row["id"])],
+            "UPDATE users SET password_hash = %s WHERE id = %s",
+            [password_hash, int(row["id"])],
         )
         connection.commit()
         return {"message": "Password updated"}
@@ -300,10 +320,10 @@ async def vehicle_login(payload: dict[str, str]) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail="Plate and PIN are required")
 
     row = fetch_one(
-        "SELECT v.id AS vehicle_id, v.owner_id, v.pin_hash, v.pin_salt, u.is_active FROM vehicles v JOIN users u ON u.id = v.owner_id WHERE v.plate = %s AND v.is_active = 1 LIMIT 1",
+        "SELECT v.id AS vehicle_id, v.owner_id, v.pin_hash, u.is_active FROM vehicles v JOIN users u ON u.id = v.owner_id WHERE v.plate = %s AND v.is_active = 1 LIMIT 1",
         [plate],
     )
-    if not row or not verify_password(pin, row.get("pin_hash"), row.get("pin_salt")):
+    if not row or not verify_password(pin, row.get("pin_hash")):
         raise HTTPException(status_code=401, detail="Invalid plate or PIN")
     if not int(row.get("is_active") or 0):
         raise HTTPException(status_code=403, detail="Vehicle owner is not active")
@@ -336,16 +356,15 @@ async def vehicle_register(payload: VehicleRegisterRequest) -> Dict[str, Any]:
     try:
         cursor = connection.cursor()
         cursor.execute(
-            "INSERT INTO users (role, first_name, last_name, email, phone, password_hash, password_salt, is_active) VALUES (%s, %s, %s, %s, %s, NULL, NULL, 1)",
+            "INSERT INTO users (role, first_name, last_name, email, phone, password_hash, is_active) VALUES (%s, %s, %s, %s, %s, NULL, 1)",
             ["vehicle_owner", first_name, last_name, None, payload.phone or None],
         )
         user_id = int(cursor.lastrowid)
         cursor.execute("INSERT INTO wallets (user_id) VALUES (%s)", [user_id])
-        pin_salt = ""
-        pin_hash = hash_password(payload.pin, pin_salt)
+        pin_hash = hash_password(payload.pin)
         cursor.execute(
-            "INSERT INTO vehicles (owner_id, plate, make, type, registered_at, pin_hash, pin_salt, is_active) VALUES (%s, %s, %s, %s, NOW(), %s, %s, 1)",
-            [user_id, plate, payload.brand, payload.vehicle_type, pin_hash, pin_salt],
+            "INSERT INTO vehicles (owner_id, plate, make, type, registered_at, pin_hash, is_active) VALUES (%s, %s, %s, %s, NOW(), %s, 1)",
+            [user_id, plate, payload.brand, payload.vehicle_type, pin_hash],
         )
         vehicle_id = int(cursor.lastrowid)
         connection.commit()
@@ -603,6 +622,110 @@ async def vision_detect(request: Request) -> Dict[str, Any]:
             os.remove(temp_path)
         except FileNotFoundError:
             pass
+
+
+# Notification Endpoints
+@app.get("/api/notifications")
+async def get_notifications(
+    owner_id: int = Query(...),
+    limit: int = Query(default=20),
+    offset: int = Query(default=0),
+    unread_only: bool = Query(default=False),
+) -> Dict[str, Any]:
+    """Get notifications for a parking owner."""
+    notifications = get_owner_notifications(owner_id, limit, offset, unread_only)
+    unread_count = get_unread_notification_count(owner_id)
+    return {
+        "status": "ok",
+        "notifications": notifications,
+        "unread_count": unread_count,
+        "total": len(notifications),
+    }
+
+
+@app.post("/api/notifications/{notification_id}/read")
+async def mark_notification_read(notification_id: int) -> Dict[str, Any]:
+    """Mark a notification as read."""
+    success = mark_notification_as_read(notification_id)
+    return {"status": "ok" if success else "error", "message": "Notification marked as read" if success else "Failed to mark notification"}
+
+
+@app.post("/api/notifications/mark-all-read")
+async def mark_all_read(owner_id: int = Query(...)) -> Dict[str, Any]:
+    """Mark all notifications as read for an owner."""
+    success = mark_all_notifications_as_read(owner_id)
+    return {"status": "ok" if success else "error", "message": "All notifications marked as read" if success else "Failed to mark notifications"}
+
+
+@app.delete("/api/notifications/{notification_id}")
+async def delete_notif(notification_id: int) -> Dict[str, Any]:
+    """Delete a notification."""
+    success = delete_notification(notification_id)
+    return {"status": "ok" if success else "error", "message": "Notification deleted" if success else "Failed to delete notification"}
+
+
+@app.get("/api/notifications/occupancy/{owner_id}")
+async def get_occupancy(owner_id: int) -> Dict[str, Any]:
+    """Get current parking lot occupancy."""
+    occupancy = get_parking_lot_occupancy(owner_id)
+    is_full = check_parking_lot_full(owner_id)
+    return {
+        "status": "ok",
+        "occupancy": occupancy,
+        "is_full": is_full,
+        "percentage": occupancy.get("percentage", 0),
+    }
+
+
+@app.get("/api/notifications/unusual-events/{owner_id}")
+async def get_unusual_events(owner_id: int) -> Dict[str, Any]:
+    """Detect and return unusual events in the parking lot."""
+    events = detect_unusual_events(owner_id)
+    
+    # Create notifications for critical events
+    for event in events:
+        if event["severity"] == "critical":
+            create_notification(
+                owner_id,
+                "unusual_event",
+                f"Alert: {event['description']}",
+                f"Detected {event['type']} in your parking lot. Details: {event['description']}",
+                "critical",
+                event.get("data"),
+            )
+    
+    return {
+        "status": "ok",
+        "events": events,
+        "count": len(events),
+        "critical_count": sum(1 for e in events if e["severity"] == "critical"),
+    }
+
+
+@app.post("/api/notifications/create")
+async def create_notif(
+    owner_id: int = Query(...),
+    notification_type: str = Query(...),
+    title: str = Query(...),
+    message: str = Query(...),
+    severity: str = Query(default="info"),
+) -> Dict[str, Any]:
+    """Create a new notification (admin/system endpoint)."""
+    notification = create_notification(
+        owner_id,
+        notification_type,
+        title,
+        message,
+        severity,
+    )
+    return {"status": "ok", "notification": notification}
+
+
+@app.get("/api/notifications/unread-count/{owner_id}")
+async def get_unread_count(owner_id: int) -> Dict[str, Any]:
+    """Get unread notification count for an owner."""
+    count = get_unread_notification_count(owner_id)
+    return {"status": "ok", "unread_count": count}
 
 
 @app.get("/")

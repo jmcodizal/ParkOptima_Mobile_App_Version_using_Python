@@ -11,6 +11,7 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import LoginFormContainer from './login_form_container';
@@ -48,6 +49,7 @@ export default function AttendantSignupScreen() {
   const router = useRouter();
 
   const handleSignup = async () => {
+    console.log('[AttendantSignup] handleSignup called');
     const newErrors: Record<string, string> = {};
 
     if (!firstName.trim()) {
@@ -82,6 +84,7 @@ export default function AttendantSignupScreen() {
     setErrors({});
     setLoading(true);
     try {
+      console.log('[AttendantSignup] Sending request...');
       const response = await apiRequest('/api/attendant/signup', {
         method: 'POST',
         body: JSON.stringify({
@@ -92,20 +95,27 @@ export default function AttendantSignupScreen() {
           password,
         }),
       });
-
-      notifySuccess('Signup completed successfully! Redirecting to login...', 'Success', [
-        {
-          text: 'OK',
-          onPress: () => {
-            router.push('/attendant_login');
+      console.log('[AttendantSignup] Success:', response);
+      
+      // Show success alert with simple OK button
+      Alert.alert(
+        'Success',
+        'Signing up successfully',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              console.log('[AttendantSignup] Navigating to login...');
+              router.push('/attendant_login');
+            },
           },
-        },
-      ]);
-    } catch (error) {
-      notifyError(
-        error instanceof Error ? error.message : 'An error occurred during signup. Please try again.',
-        'Signup Error',
+        ],
+        { cancelable: false }
       );
+    } catch (error) {
+      console.error('[AttendantSignup] Error:', error);
+      const errorMsg = error instanceof Error ? error.message : 'An error occurred during signup. Please try again.';
+      notifyError(errorMsg, 'Signup Error');
     } finally {
       setLoading(false);
     }

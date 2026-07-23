@@ -52,13 +52,11 @@ def execute(query: str, params: Optional[List[Any]] = None) -> int:
         connection.close()
 
 
-def hash_password(password: str, salt: str) -> str:
+def hash_password(password: str, salt: str = "") -> str:
     return hashlib.sha256(f"{salt}:{password}".encode("utf-8")).hexdigest()
 
 
-def verify_password(password: str, password_hash: Optional[str], password_salt: Optional[str]) -> bool:
-    # Accept empty string salts (older records may store ""),
-    # only None indicates a missing value that cannot be verified.
-    if password_hash is None or password_salt is None:
+def verify_password(password: str, password_hash: Optional[str], password_salt: Optional[str] = None) -> bool:
+    if password_hash is None:
         return False
-    return hash_password(password, password_salt) == password_hash
+    return hash_password(password, password_salt or "") == password_hash

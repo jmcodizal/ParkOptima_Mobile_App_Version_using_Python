@@ -23,16 +23,23 @@ def register_parking_owner(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     existing_user = fetch_one("SELECT id FROM users WHERE LOWER(email) = %s LIMIT 1", [email])
     if existing_user:
-        raise HTTPException(status_code=409, detail="Email is already registered")
+        raise HTTPException(status_code=409, detail="Email is already registered. Please use a different email address.")
 
-    salt = ""
-    password_hash = hash_password(password, salt)
+    if phone:
+        existing_phone = fetch_one(
+            "SELECT id FROM users WHERE phone = %s LIMIT 1",
+            [phone],
+        )
+        if existing_phone:
+            raise HTTPException(status_code=409, detail="Phone number is already registered. Please use a different phone number.")
+
+    password_hash = hash_password(password)
     connection = get_db_connection()
     try:
         cursor = connection.cursor()
         cursor.execute(
-            "INSERT INTO users (role, first_name, last_name, email, phone, password_hash, password_salt, is_active) VALUES (%s, %s, %s, %s, %s, %s, %s, 1)",
-            ["parking_owner", first_name, last_name, email, phone or None, password_hash, salt],
+            "INSERT INTO users (role, first_name, last_name, email, phone, password_hash, is_active) VALUES (%s, %s, %s, %s, %s, %s, 1)",
+            ["parking_owner", first_name, last_name, email, phone or None, password_hash],
         )
         user_id = int(cursor.lastrowid)
         cursor.execute(

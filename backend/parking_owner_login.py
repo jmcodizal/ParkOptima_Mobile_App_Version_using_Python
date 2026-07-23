@@ -19,7 +19,7 @@ def authenticate_parking_owner(identifier: str, password: str) -> Dict[str, Any]
 
     # Allow login with either email or phone number from the UI
     row = fetch_one(
-        "SELECT id, role, first_name, last_name, email, phone, password_hash, password_salt FROM users WHERE (LOWER(email) = %s OR phone = %s) AND role = 'parking_owner' AND is_active = 1 LIMIT 1",
+        "SELECT id, role, first_name, last_name, email, phone, password_hash FROM users WHERE (LOWER(email) = %s OR phone = %s) AND role = 'parking_owner' AND is_active = 1 LIMIT 1",
         [normalized_identifier, identifier],
     )
 
@@ -29,9 +29,8 @@ def authenticate_parking_owner(identifier: str, password: str) -> Dict[str, Any]
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     ph = row.get("password_hash")
-    ps = row.get("password_salt")
-    ok = verify_password(password, ph, ps)
-    print(f"[auth] parking owner id={row.get('id')} identifier={identifier} verify_ok={ok} salt_present={ps is not None}")
+    ok = verify_password(password, ph)
+    print(f"[auth] parking owner id={row.get('id')} identifier={identifier} verify_ok={ok}")
     if not ok:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 

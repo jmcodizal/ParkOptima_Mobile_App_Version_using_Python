@@ -21,7 +21,7 @@ import { notifyError } from '@/lib/feedback';
 import ForgotPasswordModal from '../components/forgot-password-modal';
 import { clearRememberedCredentials, loadRememberedCredentials, saveRememberedCredentials } from '../lib/remember-me';
 import LoginFormContainer from './login_form_container';
-import { ValidationRules } from '../lib/validation';
+import { ValidationRules, isValidEmail, isValidPhone } from '../lib/validation';
 
 const C = {
   navy: '#1E3A8A',
@@ -99,15 +99,16 @@ export default function LoginScreen() {
   }, []);
 
   const handleSignIn = async () => {
-    if (!email.trim() || !password) {
-      notifyError('Email and password are required.', 'Validation Error');
+    const identifier = email.trim();
+    if (!identifier || !password) {
+      notifyError('Email or phone number and password are required.', 'Validation Error');
       return;
     }
 
-    // Validate email format
-    const emailValidation = ValidationRules.email.validate(email);
-    if (!emailValidation.valid) {
-      notifyError(emailValidation.message, 'Invalid Email');
+    const validEmail = isValidEmail(identifier);
+    const validPhone = isValidPhone(identifier);
+    if (!validEmail && !validPhone) {
+      notifyError('Enter a valid email address or phone number starting with 09.', 'Invalid Login Identifier');
       return;
     }
 

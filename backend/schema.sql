@@ -12,7 +12,6 @@ CREATE TABLE IF NOT EXISTS users (
   email VARCHAR(255) NULL,
   phone VARCHAR(32) NULL,
   password_hash VARCHAR(255) NULL,
-  password_salt VARCHAR(255) NULL,
   is_active TINYINT(1) DEFAULT 1,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -103,6 +102,23 @@ CREATE TABLE IF NOT EXISTS owner_settings (
   CONSTRAINT fk_owner_settings_user FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS notifications (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  owner_user_id INT NOT NULL,
+  notification_type ENUM('parking_full','unusual_event','high_occupancy','low_availability') NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  message VARCHAR(500) NOT NULL,
+  severity ENUM('info','warning','critical') DEFAULT 'info',
+  is_read TINYINT(1) DEFAULT 0,
+  related_data JSON NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  read_at DATETIME NULL,
+  KEY idx_notifications_owner (owner_user_id),
+  KEY idx_notifications_created_at (created_at),
+  KEY idx_notifications_is_read (is_read),
+  CONSTRAINT fk_notifications_owner FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS audit_logs (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
@@ -114,27 +130,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   CONSTRAINT fk_audit_logs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-INSERT IGNORE INTO users (id, role, first_name, last_name, email, phone, password_hash, password_salt, is_active) VALUES
-  (1, 'parking_owner', 'Park', 'Owner', 'owner@parkoptima.com', '09170000001', NULL, NULL, 1),
-  (2, 'parking_attendant', 'Ana', 'Attendant', 'attendant@parkoptima.com', '09170000002', NULL, NULL, 1),
-  (3, 'vehicle_owner', 'John', 'Doe', 'jdoe@parkoptima.com', '09170000003', NULL, NULL, 1);
+-- Remove hardcoded sample seed data so all application data is inserted and fetched through normal DB operations.
+-- Use the database schema above to create tables, and insert real user, vehicle, session, transaction, and notification data through the application instead of hardcoded dummy rows.
 
-INSERT IGNORE INTO owner_settings (owner_user_id, system_option, motor_fee, four_wheeler_fee, parking_capacity) VALUES
-  (1, 'Parking Owner', 3.00, 30.00, 100);
-
-INSERT IGNORE INTO vehicles (id, owner_id, plate, make, model, color, type, registered_at, pin_hash, pin_salt, is_active) VALUES
-  (1, 3, 'ABC-123', 'Toyota', 'Vios', 'Silver', 'Car', NOW(), 'seed', 'seed', 1),
-  (2, 3, 'XYZ-789', 'Honda', 'City', 'Black', 'Car', NOW(), 'seed', 'seed', 1);
-
-INSERT IGNORE INTO parking_sessions (id, session_uuid, vehicle_id, owner_user_id, attendant_id, start_time, end_time, duration_seconds, status, fee, currency, notes) VALUES
-  (1, 'sess-001', 1, 3, 2, DATE_SUB(NOW(), INTERVAL 2 HOUR), NULL, 7200, 'active', 20.00, 'PHP', 'Active session'),
-  (2, 'sess-002', 2, 3, 2, DATE_SUB(NOW(), INTERVAL 1 DAY), DATE_SUB(NOW(), INTERVAL 23 HOUR), 3600, 'completed', 30.00, 'PHP', 'Completed session');
-
-INSERT IGNORE INTO transactions (id, transaction_uuid, session_id, user_id, attendant_id, amount, currency, method, status, reference, created_at) VALUES
-  (1, 'txn-001', 1, 3, 2, 20.00, 'PHP', 'cash', 'completed', 'REF-001', DATE_SUB(NOW(), INTERVAL 2 HOUR)),
-  (2, 'txn-002', 2, 3, 2, 5.00, 'PHP', 'card', 'pending', 'REF-002', DATE_SUB(NOW(), INTERVAL 1 DAY));
-
-INSERT IGNORE INTO audit_logs (id, user_id, role, action, details, created_at) VALUES
-  (1, 1, 'parking_owner', 'Login', 'Owner logged in', NOW()),
-  (2, 2, 'parking_attendant', 'Entry', 'Attendant scanned vehicle', NOW()),
-  (3, 3, 'vehicle_owner', 'Vehicle registered', 'Initial vehicle registration', NOW());
+-- Example runtime inserts should be done through the app APIs or service functions, not via static SQL seed data.

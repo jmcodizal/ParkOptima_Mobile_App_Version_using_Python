@@ -11,6 +11,7 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import LoginFormContainer from './login_form_container';
@@ -48,6 +49,7 @@ export default function ParkingOwnerSignupScreen() {
   const router = useRouter();
 
   const handleSignup = async () => {
+    console.log('[ParkingOwnerSignup] handleSignup called');
     const newErrors: Record<string, string> = {};
 
     if (!firstName.trim()) {
@@ -82,6 +84,7 @@ export default function ParkingOwnerSignupScreen() {
     setErrors({});
     setLoading(true);
     try {
+      console.log('[ParkingOwnerSignup] Sending request...');
       const response = await apiRequest('/api/auth/signup', {
         method: 'POST',
         body: JSON.stringify({
@@ -93,20 +96,27 @@ export default function ParkingOwnerSignupScreen() {
           role: 'parking_owner',
         }),
       });
-
-      notifySuccess('Signup completed successfully! Redirecting to login...', 'Success', [
-        {
-          text: 'OK',
-          onPress: () => {
-            router.push('/parking_owner_login');
+      console.log('[ParkingOwnerSignup] Success:', response);
+      
+      // Show success alert with simple OK button
+      Alert.alert(
+        'Success',
+        'Signing up successfully',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              console.log('[ParkingOwnerSignup] Navigating to login...');
+              router.push('/parking_owner_login');
+            },
           },
-        },
-      ]);
-    } catch (error) {
-      notifyError(
-        error instanceof Error ? error.message : 'An error occurred during signup. Please try again.',
-        'Signup Error',
+        ],
+        { cancelable: false }
       );
+    } catch (error) {
+      console.error('[ParkingOwnerSignup] Error:', error);
+      const errorMsg = error instanceof Error ? error.message : 'An error occurred during signup. Please try again.';
+      notifyError(errorMsg, 'Signup Error');
     } finally {
       setLoading(false);
     }
@@ -118,19 +128,25 @@ export default function ParkingOwnerSignupScreen() {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backIconBtn} onPress={() => router.push('/get_started')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <TouchableOpacity
+          style={styles.backIconBtn}
+          onPress={() => router.push('/get_started')}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
           <Ionicons name="chevron-back" size={18} color="#fff" />
-            </TouchableOpacity>
-            <View style={styles.headerLeft}>
-              <View style={styles.logoBox}>
-                <Ionicons name="car-sport" size={16} color={C.navy} />
-              </View>
-             <Text style={styles.headerTitle}>ParkOptima</Text>
-            </View>
-            <View style={styles.roleBadge}>
-              <Text style={styles.roleBadgeText}>Parking Owner</Text>
+        </TouchableOpacity>
+
+        <View style={styles.headerLeft}>
+          <View style={styles.logoBox}>
+            <Ionicons name="car-sport" size={16} color={C.navy} />
           </View>
+          <Text style={styles.headerTitle}>ParkOptima</Text>
         </View>
+
+        <View style={styles.roleBadge}>
+          <Text style={styles.roleBadgeText}>Parking Owner</Text>
+        </View>
+      </View>
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}

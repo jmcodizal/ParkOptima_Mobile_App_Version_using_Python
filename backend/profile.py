@@ -79,11 +79,10 @@ def update_owner_profile(payload: Dict[str, Any]) -> Dict[str, Any]:
         if new_password:
             if len(str(new_password)) < 6:
                 raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
-            salt = ""
-            password_hash = hash_password(str(new_password), salt)
+            password_hash = hash_password(str(new_password))
             cursor.execute(
-                "UPDATE users SET password_hash = %s, password_salt = %s WHERE id = %s",
-                [password_hash, salt, user_id],
+                "UPDATE users SET password_hash = %s WHERE id = %s",
+                [password_hash, user_id],
             )
 
         connection.commit()
@@ -99,7 +98,7 @@ def update_owner_profile(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def update_user_profile(user_id: int, payload: Dict[str, Any]) -> Dict[str, Any]:
-    row = fetch_one("SELECT id, password_hash, password_salt, email FROM users WHERE id = %s LIMIT 1", [user_id])
+    row = fetch_one("SELECT id, password_hash, email FROM users WHERE id = %s LIMIT 1", [user_id])
     if not row:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -121,7 +120,7 @@ def update_user_profile(user_id: int, payload: Dict[str, Any]) -> Dict[str, Any]
     if new_password and not current_password:
         raise HTTPException(status_code=400, detail="Current password is required to update password")
     if new_password:
-        if not verify_password(str(current_password or ""), row.get("password_hash"), row.get("password_salt")):
+        if not verify_password(str(current_password or ""), row.get("password_hash")):
             raise HTTPException(status_code=401, detail="Current password is invalid")
         if len(str(new_password)) < 6:
             raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
@@ -145,12 +144,9 @@ def update_user_profile(user_id: int, payload: Dict[str, Any]) -> Dict[str, Any]
             updates.append("phone = %s")
             values.append(str(payload.get("phone") or "").strip())
         if new_password:
-            salt = ""
-            password_hash = hash_password(str(new_password), salt)
+            password_hash = hash_password(str(new_password))
             updates.append("password_hash = %s")
             values.append(password_hash)
-            updates.append("password_salt = %s")
-            values.append(salt)
 
         if updates:
             values.append(user_id)

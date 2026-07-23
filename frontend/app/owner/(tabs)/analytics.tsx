@@ -16,6 +16,7 @@ import { useRouter } from 'expo-router';
 
 import { Colors } from '@/constants/theme';
 import { apiRequest } from '../../../lib/api';
+import { NotificationBadge } from '@/components/notification-badge';
 
 const C = {
   navy: '#1E3A8A',
@@ -248,10 +249,7 @@ export default function AnalyticsScreen() {
                   </View>
                   <Text style={styles.navBrand}>ParkOptima</Text>
                 </View>
-                <TouchableOpacity style={styles.bellWrap} onPress={() => router.push('/owner/transaction_log')}>
-                  <Text style={styles.bellIcon}>🔔</Text>
-                  <View style={styles.bellDot} />
-                </TouchableOpacity>
+                <NotificationBadge ownerId={1} onPress={() => router.push('notifications' as any)} />
               </View>
 
         <View style={styles.header}>
